@@ -1058,6 +1058,10 @@ ObjP z27AwaySquad(const ObjP& active) {
                          ->put("parameters", Array::parse(p->getJSONArray("parameters")->toString()))
                          ->put("averaged_overall", 0)
                          ->put("uniform_number", p->optInt("uniform_number", i + 1));
+      ArrP ib = p->optJSONArray("initial_booster_id_list");
+      if (ib) pObj->put("initial_booster_id_list", Array::parse(ib->toString()));
+      ArrP sk = p->optJSONArray("additional_skill_id");
+      if (sk) pObj->put("additional_skill_id", Array::parse(sk->toString()));
       ArrP ps = p->optJSONArray("play_style");
       if (ps) pObj->put("play_style", Array::parse(ps->toString()));
       playerList->put(pObj);
