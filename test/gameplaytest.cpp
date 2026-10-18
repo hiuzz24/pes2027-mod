@@ -331,6 +331,9 @@ int main() {
           resumedMessi->getJSONArray("parameters")->getInt(37) > 0 &&
           Object::parse(*s.loadProgression(606))->getInt("_spent_total") == 4,
           "Messi progression survives login instead of being repaired as overbudget");
+      s.ziruDb->deletePlayerState(606);
+      asset(root, "ZIRU_PLAYER_RECORDS.json", newObj()->put("1", newObj()->put("gameplayer", p)));
+      s.ziruPlayerRecordsCache.reset();
       auto entryTest = call(s, "CMD_SET_MYCLUB_ENTRY_INFO", newObj()->put("base_team_id", 262143)->put("team_name", "Entry Team"));
       check(entryTest->getJSONArray("base_team")->getJSONObject(0)->getString("base_team_license") == "UNKNOWN", "entry info preserves unknown license instead of fabricating licensed assets");
     }
