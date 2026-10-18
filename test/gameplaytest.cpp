@@ -200,6 +200,12 @@ int main() {
             d10->getJSONArray("parameters")->getInt(20) > 50 &&
             d10->getJSONObject("level_info")->getInt("level") == 40,
           "all Division opponents receive full progression");
+      auto highLimit = Object::parse(player->toString());
+      highLimit->getJSONObject("level_info")->put("level_limit", 57);
+      s.z27ProgressOpponentPlayer(highLimit, 10);
+      check(highLimit->getJSONArray("parameters")->getInt(21) > 50 &&
+            highLimit->getJSONObject("level_info")->getInt("level") == 57,
+          "high-level forward spends points on a secondary useful ability");
       check(player->getJSONArray("parameters")->getInt(20) == 50,
           "opponent progression does not mutate the shared player record");
       player->getJSONObject("gameplayer_id")->put("serial", 404);
