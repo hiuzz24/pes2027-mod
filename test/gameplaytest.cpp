@@ -189,7 +189,7 @@ int main() {
       OfflineServer s(cfg);
       auto player = Object::parse(p->toString());
       auto par = player->getJSONArray("parameters");
-      par->put(0, 13);
+      par->put(0, 12);
       for (int i = 14; i <= 40; i++) par->put(i, 50);
       player->getJSONObject("level_info")->put("level_limit", 40);
       auto d10 = Object::parse(player->toString());
@@ -206,6 +206,18 @@ int main() {
       check(highLimit->getJSONArray("parameters")->getInt(21) > 50 &&
             highLimit->getJSONObject("level_info")->getInt("level") == 57,
           "high-level forward spends points on a secondary useful ability");
+      auto goalkeeper = Object::parse(player->toString());
+      goalkeeper->getJSONArray("parameters")->put(0, 0);
+      s.z27ProgressOpponentPlayer(goalkeeper, 10);
+      check(goalkeeper->getJSONArray("parameters")->getInt(29) > 50 &&
+            goalkeeper->getJSONArray("parameters")->getInt(20) == 50,
+          "zero-based goalkeeper spends points on goalkeeping rather than finishing");
+      auto centreBack = Object::parse(player->toString());
+      centreBack->getJSONArray("parameters")->put(0, 1);
+      s.z27ProgressOpponentPlayer(centreBack, 10);
+      check(centreBack->getJSONArray("parameters")->getInt(15) > 50 &&
+            centreBack->getJSONArray("parameters")->getInt(29) == 50,
+          "zero-based centre back spends points on defending rather than goalkeeping");
       check(player->getJSONArray("parameters")->getInt(20) == 50,
           "opponent progression does not mutate the shared player record");
       player->getJSONObject("gameplayer_id")->put("serial", 404);
