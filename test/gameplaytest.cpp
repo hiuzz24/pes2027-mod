@@ -317,6 +317,13 @@ int main() {
           ->put("89138556575063", newObj()->put("gameplayer", messiCard)));
       s.ziruPlayerRecordsCache.reset();
       s.ziruDb->savePlayer(606, 89138556575063LL, messiCard->toString());
+      auto legacyMessiUse = newObj()->put("gameplayer_id", messiId)
+          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 74)));
+      auto legacyMessi = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()
+          ->put("gameplayer_use_list", newArr()->put(legacyMessiUse)))
+          ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
+      check(legacyMessi->getJSONObject("level_info")->getInt("customize_point") == 70,
+          "first edit accepts a legacy Messi allocation larger than the displayed spare pool");
       auto messiUse = newObj()->put("gameplayer_id", messiId)
           ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 4)));
       auto editedMessi = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()

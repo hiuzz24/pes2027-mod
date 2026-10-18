@@ -627,7 +627,12 @@ Response handleZiruCareerplan(Request& r) {
                   JStr previous = loadProgression(ziruCareerSerial);
                   int priorSpent = previous && !previous->empty() ?
                       std::max(0, Object::parse(*previous)->optInt("_spent_total", 0)) : 0;
-                  budget = ziruProgressionBudget(36) + std::min(1000, priorSpent);
+                  // Older builds showed 70 spare points even when the card
+                  // already had an allocation. Its first edited request can
+                  // therefore include both pools before the server has saved
+                  // a progression record for this serial.
+                  budget = std::max(ziruProgressionBudget(36) * 2,
+                      ziruProgressionBudget(36) + std::min(1000, priorSpent));
                 }
                 if (!li || ziruCareerSpent > budget) {
                   logRequest("ZIRU_CAREER_REJECT", "id=" + str(ziruCareerPlayerId) +
