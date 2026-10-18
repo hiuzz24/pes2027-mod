@@ -179,6 +179,7 @@ int main() {
       s.applyZiruPositionTrainingResponse(response);
       check(response->getJSONObject("position_training_result")->getString("is_success") == "NO",
           "select card with no valid choice fails instead of assigning a random position");
+      s.ziruDb->deletePlayerState(404);
     }
     {
       OfflineServer s(cfg);
