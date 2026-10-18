@@ -433,13 +433,15 @@ int main() {
       OfflineServer s(cfg);
       s.ziruDb->saveMeta("z27_division_state", R"({"division":1,"best":1,"point":0,"matches":9,"win":0,"draw":0,"lose":9,"sequence":0,"rating":1800,"completed":{}})");
       s.ziruDb->saveMeta("z27_div10_reset_v3", "1");
+      s.ziruDb->saveMeta("z27_active_match", "");
       auto id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id");
       call(s, "CMD_START_GAME");
       auto loss = result(s, id, 0, 1);
       auto lossInfo = loss->getJSONObject("game_end_result")->getJSONObject("extra_match_result")
           ->getJSONObject("league_match_result")->getJSONObject("league_info");
       check(lossInfo->getInt("pre_rating") == 1800 && lossInfo->getInt("rating") == 1788,
-          "Division 1 loss shows a negative rating change");
+          ("Division 1 loss rating: " + std::to_string(lossInfo->getInt("pre_rating")) +
+           " -> " + std::to_string(lossInfo->getInt("rating"))).c_str());
       check(s.z27State()->getInt("division") == 1 && s.z27State()->getInt("rating") == 1788,
           "Division 1 retains rating across the ten-match boundary without relegation");
       result(s, id, 0, 1);
