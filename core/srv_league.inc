@@ -620,6 +620,7 @@ Response handleZiruCareerplan(Request& r) {
                 ObjP nativePlayer = nativeWrapper ? nativeWrapper->optJSONObject("gameplayer") : nullptr;
                 int budget = nativePlayer ? ziruUnspentNativePoints(nativePlayer) :
                     (li ? ziruProgressionBudget(li->optInt("level_limit", 1)) : 0);
+                if (isZiruMessiCard(ziruCareerPlayerId)) budget = ziruProgressionBudget(36);
                 if (!li || ziruCareerSpent > budget) fail = true;
                 else {
                   ArrP params = ziruCareerParameters;
@@ -657,10 +658,12 @@ Response handleZiruCareerplan(Request& r) {
                 ObjP nativePlayer = nativeWrapper ? nativeWrapper->optJSONObject("gameplayer") : nullptr;
                 int budget = nativePlayer ? ziruUnspentNativePoints(nativePlayer) :
                     ziruProgressionBudget(li->optInt("level_limit", 1));
+                if (isZiruMessiCard(ziruCareerPlayerId)) budget = ziruProgressionBudget(36);
                 int cp = budget - ziruCareerSpent;
                 if (cp < 0) cp = 0;
                 li->put("customize_point", cp);
               }
+              applyZiruMessiMaxProgression(res);
               ObjP prog = ziruCareerProgression;
               prog->put("_spent_total", ziruCareerSpent);
               ziruDb->saveProgression(ziruCareerSerial, prog->toString());

@@ -152,8 +152,8 @@ int main() {
           "every Messi variation gets elite playmaking stats without losing stronger saved values");
       auto ml = messi->getJSONObject("level_info");
       check(ml->getInt("level") == 36 && ml->getInt("level_limit") == 36 &&
-          ml->getInt("customize_point") == 0,
-          "maxed Messi cannot receive a second Auto point pool");
+          ml->getInt("customize_point") == 70,
+          "Messi retains the same spare-point pool as Ronaldo");
       auto unrelated = newObj()->put("gameplayer_id", newObj()->put("id", 1LL))
           ->put("parameters", newArr()->put(12))
           ->put("level_info", newObj()->put("customize_point", 5));
@@ -308,6 +308,29 @@ int main() {
       check(p4->getJSONArray("parameters")->getInt(37) > 0, "kicking power auto calculated from progression points");
       check(p4->getJSONArray("parameters")->getInt(34) > 0, "speed auto calculated from progression points");
       check(p4->getJSONArray("parameters")->getInt(40) > 0, "stamina auto calculated from progression points");
+      auto messiCard = Object::parse(p->toString());
+      auto messiId = messiCard->getJSONObject("gameplayer_id");
+      messiId->put("id", 89138556575063LL)->put("serial", 606LL);
+      messiCard->getJSONObject("level_info")->put("level", 32)->put("level_limit", 32)->put("customize_point", 0);
+      asset(root, "ZIRU_PLAYER_RECORDS.json", newObj()
+          ->put("1", newObj()->put("gameplayer", p))
+          ->put("89138556575063", newObj()->put("gameplayer", messiCard)));
+      s.ziruPlayerRecordsCache.reset();
+      s.ziruDb->savePlayer(606, 89138556575063LL, messiCard->toString());
+      auto messiUse = newObj()->put("gameplayer_id", messiId)
+          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 4)));
+      auto editedMessi = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()
+          ->put("gameplayer_use_list", newArr()->put(messiUse)))
+          ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
+      check(editedMessi->getJSONArray("parameters")->getInt(17) == 99 &&
+          editedMessi->getJSONArray("parameters")->getInt(37) > 0 &&
+          editedMessi->getJSONObject("level_info")->getInt("customize_point") == 70,
+          "editing Messi retains elite stats, trained attributes and Ronaldo-like spare points");
+      auto resumedMessi = s.refreshZiruGameplayerFromCanonical(editedMessi);
+      check(resumedMessi->getJSONArray("parameters")->getInt(17) == 99 &&
+          resumedMessi->getJSONArray("parameters")->getInt(37) > 0 &&
+          Object::parse(*s.loadProgression(606))->getInt("_spent_total") == 4,
+          "Messi progression survives login instead of being repaired as overbudget");
       auto entryTest = call(s, "CMD_SET_MYCLUB_ENTRY_INFO", newObj()->put("base_team_id", 262143)->put("team_name", "Entry Team"));
       check(entryTest->getJSONArray("base_team")->getJSONObject(0)->getString("base_team_license") == "UNKNOWN", "entry info preserves unknown license instead of fabricating licensed assets");
     }

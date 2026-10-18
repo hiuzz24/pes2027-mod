@@ -297,7 +297,7 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
             JStr pr = loadProgression(serial);
             if (pr && !pr->empty()) {
               int spent = Object::parse(*pr)->optInt("_spent_total", 0);
-              if (spent > cp && lp && !lp->empty() && cur != jo &&
+              if (!isZiruMessiCard(id) && spent > cp && lp && !lp->empty() && cur != jo &&
                   baseParams && curParams && baseParams->length() >= 41 && curParams->length() >= 41) {
                 std::string key = "ziru_overbudget_backup_" + str(serial);
                 if (!loadMeta(key)) ziruDb->saveMeta(key, *lp);
