@@ -7,6 +7,10 @@ static int ziruUnspentNativePoints(const ObjP& player) {
   int level = std::max(1, std::min(limit, li->optInt("level", 1)));
   int total = std::max(0, limit - 1) * 2;
   int unspent = std::max(0, li->optInt("customize_point", 0));
+  // Bundled cards often arrive at their level limit without recorded
+  // progression, although their development budget is still (limit - 1) * 2.
+  // Restore that budget without the old, excessive flat 60-point bonus.
+  if (level == limit && unspent == 0) return total;
   return std::min(total, unspent + (limit - level) * 2);
 }
 

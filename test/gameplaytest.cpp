@@ -134,11 +134,15 @@ int main() {
     auto p = obj(R"({"gameplayer_id":{"id":1,"serial":101},"level_info":{"level":1,"level_limit":5,"customize_point":0}})");
     auto alreadyDeveloped = Object::parse(p->toString());
     alreadyDeveloped->getJSONObject("level_info")->put("level", 5);
-    check(OfflineServer::ziruUnspentNativePoints(alreadyDeveloped) == 0,
-        "max-level source card with no unspent points must not be developed twice");
+    check(OfflineServer::ziruUnspentNativePoints(alreadyDeveloped) == 8,
+        "max-level source card retains its level-earned development budget");
     alreadyDeveloped->getJSONObject("level_info")->put("customize_point", 2);
     check(OfflineServer::ziruUnspentNativePoints(alreadyDeveloped) == 2,
         "max-level source card keeps only its native unspent points");
+    alreadyDeveloped->getJSONObject("level_info")->put("level", 35)->put("level_limit", 35)
+        ->put("customize_point", 0);
+    check(OfflineServer::ziruUnspentNativePoints(alreadyDeveloped) == 68,
+        "max-level cards receive only their level-earned points, without the former 60-point bonus");
     {
       auto messiParams = newArr();
       for (int i = 0; i < 145; ++i) messiParams->put(i == 18 ? 101 : 50);
@@ -308,6 +312,30 @@ int main() {
       check(p4->getJSONArray("parameters")->getInt(37) > 0, "kicking power auto calculated from progression points");
       check(p4->getJSONArray("parameters")->getInt(34) > 0, "speed auto calculated from progression points");
       check(p4->getJSONArray("parameters")->getInt(40) > 0, "stamina auto calculated from progression points");
+      auto maxedCard = Object::parse(p->toString());
+      auto maxedId = maxedCard->getJSONObject("gameplayer_id");
+      maxedId->put("id", 2LL)->put("serial", 707LL);
+      maxedCard->getJSONObject("level_info")->put("level", 29)->put("level_limit", 29)
+          ->put("customize_point", 0);
+      asset(root, "ZIRU_PLAYER_RECORDS.json", newObj()
+          ->put("1", newObj()->put("gameplayer", p))
+          ->put("2", newObj()->put("gameplayer", maxedCard)));
+      s.ziruPlayerRecordsCache.reset();
+      s.ziruDb->savePlayer(707, 2, maxedCard->toString());
+      auto maxedLogin = s.refreshZiruGameplayerFromCanonical(maxedCard);
+      check(maxedLogin->getJSONObject("level_info")->getInt("customize_point") == 56,
+          "level-29 bundled card has 56 points available to Auto");
+      auto maxedUse = newObj()->put("gameplayer_id", maxedId)
+          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 56)));
+      auto maxedResult = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()
+          ->put("gameplayer_use_list", newArr()->put(maxedUse)))
+          ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
+      check(maxedResult->getJSONObject("level_info")->getInt("customize_point") == 0 &&
+          maxedResult->getJSONArray("parameters")->getInt(37) > 0,
+          "level-29 card accepts all 56 earned points without an extra bonus");
+      s.ziruDb->deletePlayerState(707);
+      asset(root, "ZIRU_PLAYER_RECORDS.json", newObj()->put("1", newObj()->put("gameplayer", p)));
+      s.ziruPlayerRecordsCache.reset();
       auto messiCard = Object::parse(p->toString());
       auto messiId = messiCard->getJSONObject("gameplayer_id");
       messiId->put("id", 89138556575063LL)->put("serial", 606LL);
