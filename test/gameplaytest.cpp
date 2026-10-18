@@ -63,9 +63,19 @@ int main() {
     {
       OfflineServer s(cfg);
       check(s.z27State()->getInt("division") == 1, "unlocked D1 by default");
+      auto aiCopy = Object::parse(p->toString());
+      s.z27MaxOpponentPlayer(aiCopy);
+      check(aiCopy->getJSONObject("level_info")->getInt("level") == 5 &&
+            aiCopy->getJSONArray("parameters")->getInt(20) > 0,
+            "AI reaches its level limit with allocated abilities");
+      check(p->getJSONObject("level_info")->getInt("level") == 5 &&
+            p->getJSONArray("parameters")->getInt(20) == 0,
+            "AI upgrade leaves the shared player card unchanged");
       s.ziruDb->saveMeta("z27_division_state", R"({"division":10,"best":10,"point":0,"matches":0,"win":0,"draw":0,"lose":0,"sequence":0,"completed":{}})");
       s.ziruDb->saveMeta("z27_div1_set", "1");
       auto first = call(s, "CMD_GET_VSCOM_OPPONENT"); auto id = first->getLong("game_id");
+      check(first->getJSONArray("player_list")->getJSONObject(0)->getJSONArray("parameters")->getInt(20) > 0,
+            "Division 10 opponent also receives full abilities");
       check(coachId(call(s, "CMD_START_GAME", newObj()->put("game_id", (long long)id))) == 100, "selected coach on first start");
       call(s, "CMD_SET_MYCLUB_SQUAD_INFO", newObj()->put("squad_id", 9)->put("squad_data", newObj()->put("coach", newArr()->put(coachRef(200, 2222)))));
       auto retry = call(s, "CMD_START_GAME", newObj()->put("game_id", (long long)id));
@@ -118,6 +128,25 @@ int main() {
       check(p4->getJSONArray("parameters")->getInt(40) == 8, "stamina auto calculated from progression points");
       auto entryTest = call(s, "CMD_SET_MYCLUB_ENTRY_INFO", newObj()->put("base_team_id", 262143)->put("team_name", "Entry Team"));
       check(entryTest->getJSONArray("base_team")->getJSONObject(0)->getString("base_team_license") == "LICENSED", "entry info sets licensed base team");
+    }
+    {
+      OfflineServer s(cfg);
+      s.ziruDb->saveMeta("z27_division_state",
+          R"({"division":1,"best":1,"point":0,"matches":0,"win":0,"draw":0,"lose":0,"sequence":0,"rating":1800,"completed":{}})");
+      s.ziruDb->saveMeta("z27_active_match", "");
+      auto id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id");
+      call(s, "CMD_START_GAME");
+      auto loss = result(s, id, 0, 1);
+      auto rating = loss->getJSONObject("game_end_result")->getJSONObject("extra_match_result")
+          ->getJSONObject("league_match_result")->getJSONObject("league_info");
+      check(rating->getInt("pre_rating") == 1800 && rating->getInt("rating") == 1788,
+            "Division 1 loss subtracts rating");
+      result(s, id, 0, 1);
+      check(s.z27State()->getInt("rating") == 1788, "duplicate result does not subtract twice");
+      id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id");
+      call(s, "CMD_START_GAME");
+      result(s, id, 1, 0);
+      check(s.z27State()->getInt("rating") > 1788, "Division 1 win adds rating");
     }
     std::filesystem::remove_all(root);
     std::cout << "PASS: coach/snapshot/MyLeague, progression spend/reset/restart, AI promotion/idempotency/restart/give-up\n";
