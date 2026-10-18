@@ -467,6 +467,16 @@ int main() {
       check(s.z27State()->getInt("division") == 10, "legacy rank migrates to D10");
       auto selected = call(s, "CMD_GET_VSCOM_OPPONENT");
       check(selected->getString("cpu_level") == "LEGEND" && s.z27Active()->getInt("division") == 10, "cached opponent migrates with D10 at maximum difficulty");
+      auto aiPlayer = selected->getJSONArray("player_list")->getJSONObject(0);
+      auto aiId = aiPlayer->getJSONObject("gameplayer_id");
+      auto aiDetails = call(s, "CMD_GET_MYCLUB_PLAYER_DATA", newObj()->put("gameplayer_id", aiId));
+      check(aiDetails->getJSONArray("original_parameters")->getInt(20) == aiPlayer->getJSONArray("parameters")->getInt(20) &&
+            aiPlayer->getJSONObject("level_info")->getInt("level") == aiPlayer->getJSONObject("level_info")->getInt("level_limit"),
+          "Division AI detail uses fully progressed opponent rather than catalog card");
+      auto aiMatch = call(s, "CMD_START_GAME", newObj()->put("game_id", (long long)selected->getLong("game_id")))
+          ->getJSONObject("squad_data_away")->getJSONArray("player_list")->getJSONObject(0);
+      check(aiMatch->getJSONArray("parameters")->getInt(20) == aiPlayer->getJSONArray("parameters")->getInt(20),
+          "Division AI match uses the same progressed abilities as opponent screen");
       active = s.z27Meta("z27_active_match");
       active->put("division", 10)->put("cpu_level", "NORMAL");
       s.ziruDb->saveMeta("z27_active_match", active->toString());
