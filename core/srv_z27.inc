@@ -588,10 +588,7 @@ ObjP z27State() {
 }
 
 std::string z27Difficulty(int d) {
-  if (d >= 9) return "NORMAL";
-  if (d >= 7) return "HARD";
-  if (d >= 5) return "VERYHARD";
-  if (d >= 3) return "HARDEST";
+  (void)d;
   return "LEGEND";
 }
 
@@ -646,8 +643,8 @@ void z27ProgressOpponentPlayer(const ObjP& player, int division) {
   ObjP level = player->optJSONObject("level_info");
   if (!params || params->length() < 145 || !level) return;
   int limit = std::max(1, std::min(100, level->optInt("level_limit", 1)));
-  int div = std::max(1, std::min(10, division));
-  int budget = ziruProgressionBudget(limit) * (15 + (10 - div) * 85 / 9) / 100;
+  (void)division;
+  int budget = ziruProgressionBudget(limit);
   const char* const groups[] = {"SHOOT", "PASS", "DRIBLE", "QUICKNESS", "STRENGTH",
                                 "AERIAL", "DEFENCE", "GK1", "GK2", "GK3"};
   int weight[10] = {};
@@ -676,6 +673,7 @@ void z27ProgressOpponentPlayer(const ObjP& player, int division) {
   ObjP progression = newObj();
   for (int i = 0; i < 10; i++) progression->put(groups[i], spent[i]);
   z27ApplyProgressionPoints(params, progression, Array::parse(params->toString()));
+  level->put("level", limit)->put("exp_current_level", 0)->put("exp_to_next_level", 0);
 }
 
 ObjP z27Opponent(const ObjP& active) {
@@ -762,11 +760,7 @@ Response z27SelectOpponent() {
   try {
     ObjP req = z27Request();
     ObjP st = z27State();
-    std::string userCpu = req ? req->optString("cpu_level", "") : "";
     std::string effectiveCpu = z27Difficulty(st->getInt("division"));
-    if (!userCpu.empty() && (userCpu == "VERYEASY" || userCpu == "EASY" || userCpu == "NORMAL" || userCpu == "HARD" || userCpu == "VERYHARD" || userCpu == "HARDEST" || userCpu == "LEGEND")) {
-      effectiveCpu = userCpu;
-    }
     ObjP m = z27Meta("z27_active_match");
     if (m) {
       if (!st->getJSONObject("completed")->has(str(m->getLong("game_id")))) m->put("division", st->getInt("division"));
