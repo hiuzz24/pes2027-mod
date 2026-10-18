@@ -649,12 +649,12 @@ void z27ProgressOpponentPlayer(const ObjP& player, int division) {
                                 "AERIAL", "DEFENCE", "GK1", "GK2", "GK3"};
   int weight[10] = {};
   int pos = params->optInt(0, 0);
-  if (pos == 1) { weight[7] = 4; weight[8] = 4; weight[9] = 4; weight[5] = 1; }
-  else if (pos == 2) { weight[6] = 5; weight[5] = 3; weight[4] = 2; weight[1] = 1; }
-  else if (pos == 3 || pos == 4) { weight[6] = 4; weight[4] = 3; weight[1] = 2; weight[3] = 2; }
-  else if (pos == 5 || pos == 6) { weight[1] = 4; weight[6] = 3; weight[4] = 2; weight[2] = 2; }
-  else if (pos == 7 || pos == 8 || pos == 9) { weight[1] = 3; weight[2] = 3; weight[3] = 3; weight[4] = 2; }
-  else { weight[0] = 4; weight[2] = 3; weight[3] = 3; weight[4] = 2; }
+  if (pos == 1) { weight[7] = 4; weight[8] = 4; weight[9] = 4; weight[5] = 2; weight[4] = 1; }
+  else if (pos == 2) { weight[6] = 5; weight[5] = 3; weight[4] = 2; weight[1] = 1; weight[3] = 1; }
+  else if (pos == 3 || pos == 4) { weight[6] = 4; weight[4] = 3; weight[1] = 2; weight[3] = 2; weight[2] = 1; }
+  else if (pos == 5 || pos == 6) { weight[1] = 4; weight[6] = 3; weight[4] = 2; weight[2] = 2; weight[3] = 1; }
+  else if (pos == 7 || pos == 8 || pos == 9) { weight[1] = 3; weight[2] = 3; weight[3] = 3; weight[4] = 2; weight[0] = 1; }
+  else { weight[0] = 4; weight[2] = 3; weight[3] = 3; weight[4] = 2; weight[1] = 1; weight[5] = 1; }
   int count[10] = {}, spent[10] = {};
   while (budget > 0) {
     int best = -1;
