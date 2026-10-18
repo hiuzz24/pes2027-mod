@@ -419,13 +419,13 @@ void applyZiruRonaldoMaxProgression(const ObjP& jo) {
 
 static bool isZiruMessiCard(int64_t id) { return (id & 0xFFFFFF) == 7511; }
 
-static void applyZiruMessiMaxProgression(const ObjP& jo) {
+static void applyZiruMessiMaxProgression(const ObjP& jo, bool preserveEditedStats = false) {
   if (!jo) return;
   try {
     ObjP gid = jo->optJSONObject("gameplayer_id");
     if (!gid || !isZiruMessiCard(gid->optLong("id", 0))) return;
     ArrP p = jo->optJSONArray("parameters");
-    if (p && p->length() >= 41) {
+    if (!preserveEditedStats && p && p->length() >= 41) {
       // Give every Messi variation a fixed, position-appropriate ceiling.
       // Keep a stronger existing value rather than downgrading a saved card.
       const std::pair<int, int> targets[] = {
@@ -451,8 +451,8 @@ static void applyZiruMessiMaxProgression(const ObjP& jo) {
       int lim = std::max(36, li->optInt("level_limit", 36));
       li->put("level_limit", lim);
       li->put("level", lim);
-      // Match Ronaldo's spare-point behavior. Careerplan separately accepts
-      // this budget and reapplies the elite floor after each edit.
+      // Keep the spare points after edits, while leaving the user's chosen
+      // parameters alone whenever a progression allocation exists.
       li->put("customize_point", (lim - 1) * 2);
       li->put("exp_current_level", 0);
       li->put("exp_to_next_level", 0);

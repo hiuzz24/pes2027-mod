@@ -627,8 +627,12 @@ Response handleZiruCareerplan(Request& r) {
                   res = jo;
                   if (!params || params->length() < 145) {
                     ObjP baseWrapper = getZiruPlayerWrapper(Value((long long)ziruCareerPlayerId), false);
-                    ArrP bp = (baseWrapper && baseWrapper->optJSONObject("gameplayer")) ?
-                              baseWrapper->getJSONObject("gameplayer")->optJSONArray("parameters") : nullptr;
+                    ObjP basePlayer = baseWrapper ? baseWrapper->optJSONObject("gameplayer") : nullptr;
+                    if (basePlayer && isZiruMessiCard(ziruCareerPlayerId)) {
+                      basePlayer = Object::parse(basePlayer->toString());
+                      applyZiruMessiMaxProgression(basePlayer);
+                    }
+                    ArrP bp = basePlayer ? basePlayer->optJSONArray("parameters") : nullptr;
                     if (!bp) bp = jo->optJSONArray("parameters");
                     if (bp) {
                       ArrP np = Array::parse(bp->toString());
@@ -638,11 +642,17 @@ Response handleZiruCareerplan(Request& r) {
                     }
                   } else {
                     ArrP bp = nativePlayer ? nativePlayer->optJSONArray("parameters") : nullptr;
-                    if (bp && bp->length() >= 145) {
+                    if (!isZiruMessiCard(ziruCareerPlayerId) && bp && bp->length() >= 145) {
                       ArrP calculated = Array::parse(bp->toString());
                       z27ApplyProgressionPoints(calculated, ziruCareerProgression, bp);
                       for (int idx = 14; idx <= 40; ++idx)
                         params->put(idx, calculated->optInt(idx, bp->optInt(idx, 0)));
+                    } else if (isZiruMessiCard(ziruCareerPlayerId)) {
+                      // The client sends the exact attribute values selected in the
+                      // development screen. Preserve those choices for Messi rather
+                      // than restoring the boosted defaults on every save.
+                      for (int idx = 14; idx <= 40; ++idx)
+                        params->put(idx, std::max(0, std::min(105, params->optInt(idx, 0))));
                     }
                     z28PreserveCareerTraining(jo, params);
                     jo->put("parameters", params);
@@ -663,7 +673,7 @@ Response handleZiruCareerplan(Request& r) {
                 if (cp < 0) cp = 0;
                 li->put("customize_point", cp);
               }
-              applyZiruMessiMaxProgression(res);
+              applyZiruMessiMaxProgression(res, ziruCareerSpent > 0);
               ObjP prog = ziruCareerProgression;
               prog->put("_spent_total", ziruCareerSpent);
               ziruDb->saveProgression(ziruCareerSerial, prog->toString());

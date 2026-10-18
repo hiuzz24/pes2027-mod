@@ -331,6 +331,24 @@ int main() {
           resumedMessi->getJSONArray("parameters")->getInt(37) > 0 &&
           Object::parse(*s.loadProgression(606))->getInt("_spent_total") == 4,
           "Messi progression survives login instead of being repaired as overbudget");
+      auto chosenStats = Array::parse(resumedMessi->getJSONArray("parameters")->toString());
+      chosenStats->put(17, 90)->put(20, 102);
+      auto customMessiUse = newObj()->put("gameplayer_id", messiId)->put("parameters", chosenStats)
+          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 4)));
+      auto customMessi = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()
+          ->put("gameplayer_use_list", newArr()->put(customMessiUse)))
+          ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
+      check(customMessi->getJSONArray("parameters")->getInt(17) == 90 &&
+          customMessi->getJSONArray("parameters")->getInt(20) == 102 &&
+          customMessi->getJSONObject("level_info")->getInt("customize_point") == 70,
+          "Messi accepts manually lowered and raised attributes while retaining spare points");
+      auto reloadedMessi = s.refreshZiruGameplayerFromCanonical(customMessi);
+      auto matchMessi = s.z27Player(messiId);
+      check(reloadedMessi->getJSONArray("parameters")->getInt(17) == 90 &&
+          reloadedMessi->getJSONArray("parameters")->getInt(20) == 102 &&
+          matchMessi->getJSONArray("parameters")->getInt(17) == 90 &&
+          matchMessi->getJSONArray("parameters")->getInt(20) == 102,
+          "Messi's chosen attributes survive login and match startup");
       s.ziruDb->deletePlayerState(606);
       asset(root, "ZIRU_PLAYER_RECORDS.json", newObj()->put("1", newObj()->put("gameplayer", p)));
       s.ziruPlayerRecordsCache.reset();

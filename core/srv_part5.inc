@@ -351,7 +351,13 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
         }
         z27ApplyAppearanceAndClub(cur);
         applyZiruRonaldoMaxProgression(cur);
-        applyZiruMessiMaxProgression(cur);
+        bool messiEdited = false;
+        if (serial > 0 && isZiruMessiCard(id)) {
+          JStr progression = loadProgression(serial);
+          messiEdited = progression && !progression->empty() &&
+              Object::parse(*progression)->optInt("_spent_total", 0) > 0;
+        }
+        applyZiruMessiMaxProgression(cur, messiEdited);
         applyZiruWeakFootFix(cur);
         if (serial > 0) {
           ziruDb->savePlayer(serial, id, cur->toString());
