@@ -315,6 +315,9 @@ int main() {
       auto maxedCard = Object::parse(p->toString());
       auto maxedId = maxedCard->getJSONObject("gameplayer_id");
       maxedId->put("id", 2LL)->put("serial", 707LL);
+      auto maxedBaseStats = maxedCard->getJSONArray("parameters");
+      for (int idx = 14; idx <= 40; ++idx)
+        if (idx != 33) maxedBaseStats->put(idx, 70);
       maxedCard->getJSONObject("level_info")->put("level", 29)->put("level_limit", 29)
           ->put("customize_point", 0);
       asset(root, "ZIRU_PLAYER_RECORDS.json", newObj()
@@ -330,9 +333,23 @@ int main() {
       auto maxedResult = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()
           ->put("gameplayer_use_list", newArr()->put(maxedUse)))
           ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
+      auto maxedTrainedStats = maxedResult->getJSONArray("parameters");
+      int maxedBeforeTotal = 0, maxedAfterTotal = 0;
+      for (int idx = 14; idx <= 40; ++idx) {
+        if (idx == 33) continue;
+        maxedBeforeTotal += maxedBaseStats->getInt(idx);
+        maxedAfterTotal += maxedTrainedStats->getInt(idx);
+      }
       check(maxedResult->getJSONObject("level_info")->getInt("customize_point") == 0 &&
-          maxedResult->getJSONArray("parameters")->getInt(37) > 0,
-          "level-29 card accepts all 56 earned points without an extra bonus");
+          maxedTrainedStats->getInt(37) == 75 && maxedAfterTotal == maxedBeforeTotal,
+          "level-29 card redistributes all 56 points without exceeding Reset's total attributes");
+      auto oldInflatedCard = Object::parse(*s.loadPlayer(707));
+      oldInflatedCard->getJSONArray("parameters")->put(37, 100);
+      s.ziruDb->savePlayer(707, 2, oldInflatedCard->toString());
+      auto migratedCard = s.refreshZiruGameplayerFromCanonical(oldInflatedCard);
+      check(migratedCard->getJSONArray("parameters")->getInt(37) == 75 &&
+          s.loadMeta("ziru_maxlevel_backup_707"),
+          "previously inflated max-level save is backed up and balanced on login");
       s.ziruDb->deletePlayerState(707);
       asset(root, "ZIRU_PLAYER_RECORDS.json", newObj()->put("1", newObj()->put("gameplayer", p)));
       s.ziruPlayerRecordsCache.reset();

@@ -229,6 +229,48 @@ void z27ApplyProgressionPoints(const ArrP& params, const ObjP& prog, const ArrP&
   }
 }
 
+// Catalog cards at their level limit already contain their finished ratings.
+// Their earned points are available for redistribution, not another full
+// upgrade. Keep the total rating budget and limit any one gain to five.
+void z27BalanceMaxLevelProgression(const ArrP& params, const ArrP& baseParams) {
+  if (!params || !baseParams || params->length() < 41 || baseParams->length() < 41) return;
+  int gained = 0;
+  bool trained[41] = {};
+  for (int idx = 14; idx <= 40; ++idx) {
+    if (idx == 33) continue; // non-ability field
+    int base = baseParams->optInt(idx, 0);
+    int value = std::min(params->optInt(idx, base), std::min(105, base + 5));
+    value = std::max(base, value);
+    trained[idx] = value > base;
+    params->put(idx, value);
+    gained += value - base;
+  }
+  while (gained > 0) {
+    bool changed = false;
+    for (int idx = 14; idx <= 40 && gained > 0; ++idx) {
+      if (idx == 33) continue;
+      int base = baseParams->optInt(idx, 0);
+      int value = params->optInt(idx, base);
+      if (!trained[idx] && value > std::max(40, base - 3)) {
+        params->put(idx, value - 1);
+        --gained;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  // If the card has too few transferable attributes, discard the remaining
+  // gain rather than making its overall ratings stronger than Reset.
+  for (int idx = 14; idx <= 40 && gained > 0; ++idx) {
+    if (idx == 33) continue;
+    int base = baseParams->optInt(idx, 0);
+    int value = params->optInt(idx, base);
+    int drop = std::min(gained, std::max(0, value - base));
+    params->put(idx, value - drop);
+    gained -= drop;
+  }
+}
+
 ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
   if (!jo) return jo;
   try {
@@ -308,6 +350,28 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
                 logRequest("ZIRU_AUTO_BUDGET", "Restored overbudget player serial=" + str(serial));
               } else {
                 cp = std::max(0, cp - spent);
+                ObjP nativeLevel = base->optJSONObject("level_info");
+                if (!isZiruMessiCard(id) && nativeLevel &&
+                    nativeLevel->optInt("level", 1) == nativeLevel->optInt("level_limit", 1) &&
+                    nativeLevel->optInt("customize_point", 0) == 0 &&
+                    baseParams && curParams && baseParams->length() >= 145 && curParams->length() >= 145) {
+                  ArrP balanced = Array::parse(baseParams->toString());
+                  z27ApplyProgressionPoints(balanced, Object::parse(*pr), baseParams);
+                  z27BalanceMaxLevelProgression(balanced, baseParams);
+                  bool changed = false;
+                  for (int idx = 14; idx <= 40; ++idx) {
+                    if (idx == 33) continue;
+                    if (curParams->optInt(idx, 0) != balanced->optInt(idx, 0)) {
+                      curParams->put(idx, balanced->optInt(idx, 0));
+                      changed = true;
+                    }
+                  }
+                  if (changed) {
+                    std::string key = "ziru_maxlevel_backup_" + str(serial);
+                    if (lp && !lp->empty() && !loadMeta(key)) ziruDb->saveMeta(key, *lp);
+                    logRequest("ZIRU_AUTO_BALANCE", "Rebalanced max-level player serial=" + str(serial));
+                  }
+                }
               }
             }
           }

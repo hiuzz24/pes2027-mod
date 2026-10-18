@@ -643,6 +643,10 @@ Response handleZiruCareerplan(Request& r) {
                 else {
                   ArrP params = ziruCareerParameters;
                   res = jo;
+                  ObjP nativeLevel = nativePlayer ? nativePlayer->optJSONObject("level_info") : nullptr;
+                  bool finishedCatalogCard = !isZiruMessiCard(ziruCareerPlayerId) && nativeLevel &&
+                      nativeLevel->optInt("level", 1) == nativeLevel->optInt("level_limit", 1) &&
+                      nativeLevel->optInt("customize_point", 0) == 0;
                   if (!params || params->length() < 145) {
                     ObjP baseWrapper = getZiruPlayerWrapper(Value((long long)ziruCareerPlayerId), false);
                     ObjP basePlayer = baseWrapper ? baseWrapper->optJSONObject("gameplayer") : nullptr;
@@ -651,6 +655,7 @@ Response handleZiruCareerplan(Request& r) {
                     if (bp) {
                       ArrP np = Array::parse(bp->toString());
                       z27ApplyProgressionPoints(np, ziruCareerProgression, bp);
+                      if (finishedCatalogCard) z27BalanceMaxLevelProgression(np, bp);
                       z28PreserveCareerTraining(jo, np);
                       jo->put("parameters", np);
                     }
@@ -659,6 +664,7 @@ Response handleZiruCareerplan(Request& r) {
                     if (!isZiruMessiCard(ziruCareerPlayerId) && bp && bp->length() >= 145) {
                       ArrP calculated = Array::parse(bp->toString());
                       z27ApplyProgressionPoints(calculated, ziruCareerProgression, bp);
+                      if (finishedCatalogCard) z27BalanceMaxLevelProgression(calculated, bp);
                       for (int idx = 14; idx <= 40; ++idx)
                         params->put(idx, calculated->optInt(idx, bp->optInt(idx, 0)));
                     } else if (isZiruMessiCard(ziruCareerPlayerId)) {
