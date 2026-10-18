@@ -351,6 +351,7 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
         }
         z27ApplyAppearanceAndClub(cur);
         applyZiruRonaldoMaxProgression(cur);
+        applyZiruMessiMaxProgression(cur);
         applyZiruWeakFootFix(cur);
         if (serial > 0) {
           ziruDb->savePlayer(serial, id, cur->toString());

@@ -139,6 +139,28 @@ int main() {
     alreadyDeveloped->getJSONObject("level_info")->put("customize_point", 2);
     check(OfflineServer::ziruUnspentNativePoints(alreadyDeveloped) == 2,
         "max-level source card keeps only its native unspent points");
+    {
+      auto messiParams = newArr();
+      for (int i = 0; i < 145; ++i) messiParams->put(i == 18 ? 101 : 50);
+      auto messi = newObj()->put("gameplayer_id", newObj()->put("id", 89138556575063LL))
+          ->put("parameters", messiParams)
+          ->put("level_info", newObj()->put("level", 1)->put("level_limit", 32)->put("customize_point", 62));
+      OfflineServer::applyZiruMessiMaxProgression(messi);
+      check(messiParams->getInt(14) == 98 && messiParams->getInt(17) == 99 &&
+          messiParams->getInt(18) == 101 && messiParams->getInt(20) == 97 &&
+          messiParams->getInt(28) == 99 && messiParams->getInt(36) == 97,
+          "every Messi variation gets elite playmaking stats without losing stronger saved values");
+      auto ml = messi->getJSONObject("level_info");
+      check(ml->getInt("level") == 36 && ml->getInt("level_limit") == 36 &&
+          ml->getInt("customize_point") == 0,
+          "maxed Messi cannot receive a second Auto point pool");
+      auto unrelated = newObj()->put("gameplayer_id", newObj()->put("id", 1LL))
+          ->put("parameters", newArr()->put(12))
+          ->put("level_info", newObj()->put("customize_point", 5));
+      OfflineServer::applyZiruMessiMaxProgression(unrelated);
+      check(unrelated->getJSONObject("level_info")->getInt("customize_point") == 5,
+          "Messi override leaves other players unchanged");
+    }
     auto parameters = newArr(); for (int i = 0; i < 145; ++i) parameters->put(i == 14 ? 70 : 0);
     p->put("parameters", parameters);
     auto squad = newObj()->put("player_list", newArr()->put(newObj()->put("gameplayer_id", p->getJSONObject("gameplayer_id"))))

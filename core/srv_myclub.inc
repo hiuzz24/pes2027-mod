@@ -417,6 +417,49 @@ void applyZiruRonaldoMaxProgression(const ObjP& jo) {
   }
 }
 
+void applyZiruMessiMaxProgression(const ObjP& jo) {
+  if (!jo) return;
+  try {
+    ObjP gid = jo->optJSONObject("gameplayer_id");
+    if (!gid || (gid->optLong("id", 0) & 0xFFFFFF) != 7511) return;
+    ArrP p = jo->optJSONArray("parameters");
+    if (p && p->length() >= 41) {
+      // Give every Messi variation a fixed, position-appropriate ceiling.
+      // Keep a stronger existing value rather than downgrading a saved card.
+      const std::pair<int, int> targets[] = {
+        {14, 98}, // Offensive Awareness
+        {17, 99}, // Ball Control
+        {18, 99}, // Dribbling
+        {19, 99}, // Tight Possession
+        {20, 97}, // Finishing
+        {21, 96}, // Low Pass
+        {22, 93}, // Lofted Pass
+        {27, 99}, // Place Kicking
+        {28, 99}, // Curl
+        {34, 92}, // Kicking Power
+        {35, 94}, // Speed
+        {36, 97}, // Acceleration
+        {40, 92}, // Stamina
+      };
+      for (const auto& target : targets)
+        p->put(target.first, std::max(p->optInt(target.first, 0), target.second));
+    }
+    ObjP li = jo->optJSONObject("level_info");
+    if (li) {
+      int lim = std::max(36, li->optInt("level_limit", 36));
+      li->put("level_limit", lim);
+      li->put("level", lim);
+      // The fixed elite stats are already fully developed; Auto must not
+      // spend another pool of points on top of them.
+      li->put("customize_point", 0);
+      li->put("exp_current_level", 0);
+      li->put("exp_to_next_level", 0);
+    }
+  } catch (const std::exception& e) {
+    zs::loge("OFFLINE_SERVER", std::string("[ZIRU_MESSI_MAX_ERR] ") + e.what());
+  }
+}
+
 inline const std::unordered_map<int32_t, std::pair<int, int>>& getZiruCanonicalWeakFootMap() {
   static const std::unordered_map<int32_t, std::pair<int, int>> kMap = {
     {52, {3, 3}},

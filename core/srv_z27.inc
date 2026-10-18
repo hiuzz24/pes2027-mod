@@ -836,6 +836,7 @@ ObjP z27Player(const ObjP& gid) {
   }
   z27ApplyAppearanceAndClub(p);
   applyZiruRonaldoMaxProgression(p);
+  applyZiruMessiMaxProgression(p);
   applyZiruWeakFootFix(p);
   p = ziruSyncActiveBooster(p);
 
