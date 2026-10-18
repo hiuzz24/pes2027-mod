@@ -632,18 +632,36 @@ static uint32_t gOnlineUid;
 static std::atomic<bool> gOnlineInRoom{false};
 
 static void loadOnlineConfig() {
-  // Keep AWS online servers disabled per user request ("gỡ toàn bộ online qua sever aws đi", "chỉ giữ đá qua LAN thôi")
-  gOnlineServer = nil;
-  gOnlineToken = nil;
-  gOnlineCertSha256 = nil;
+  NSMutableDictionary* cfg = [NSMutableDictionary dictionary];
+  for (NSString* f in @[ [gBundleAssets stringByAppendingPathComponent:@"online.json"],
+                          [gDocs stringByAppendingPathComponent:@"PES2027-online.json"] ]) {
+    NSData* d = [NSData dataWithContentsOfFile:f];
+    id j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
+    if ([j isKindOfClass:NSDictionary.class]) [cfg addEntriesFromDictionary:j];
+  }
+  NSString* server = [cfg[@"server"] isKindOfClass:NSString.class] ? cfg[@"server"] : nil;
+  BOOL enabled = cfg[@"enabled"] ? [cfg[@"enabled"] boolValue] : YES;
+  while ([server hasSuffix:@"/"]) server = [server substringToIndex:server.length - 1];
+  gOnlineServer = (enabled && server.length) ? server : nil;
+  NSURL* onlineURL = gOnlineServer ? [NSURL URLWithString:gOnlineServer] : nil;
+  if (gOnlineServer && (![onlineURL.scheme.lowercaseString isEqualToString:@"https"] || !onlineURL.host.length ||
+                       onlineURL.user.length || onlineURL.password.length || onlineURL.query.length ||
+                       onlineURL.fragment.length || onlineURL.path.length)) {
+    ZLog(@"[ONLINE] invalid server origin; HTTPS host and optional port required");
+    gOnlineServer = nil;
+  }
+  gOnlineToken = [cfg[@"token"] isKindOfClass:NSString.class] ? cfg[@"token"] : nil;
+  gOnlineCertSha256 = [cfg[@"cert_sha256"] isKindOfClass:NSString.class] ? [cfg[@"cert_sha256"] lowercaseString] : nil;
   NSUserDefaults* ud = NSUserDefaults.standardUserDefaults;
   gOnlineUid = (uint32_t)[ud integerForKey:@"ZiruOnlineUid"];
   if (!gOnlineUid) {
     gOnlineUid = 1000000000u + arc4random_uniform(1000000000u);
     [ud setInteger:gOnlineUid forKey:@"ZiruOnlineUid"];
   }
-  gOnlineName = [NSString stringWithFormat:@"Player%04u", gOnlineUid % 10000];
-  ZLog(@"[ONLINE] disabled (AWS servers decommissioned; local LAN/Bluetooth match only)");
+  NSString* name = [cfg[@"name"] isKindOfClass:NSString.class] ? cfg[@"name"] : nil;
+  gOnlineName = name.length ? name : [NSString stringWithFormat:@"Player%04u", gOnlineUid % 10000];
+  if (gOnlineServer) ZLog(@"[ONLINE] server %@ uid %u name %@", gOnlineServer, gOnlineUid, gOnlineName);
+  else ZLog(@"[ONLINE] disabled (no server in ziru/online.json or Documents/PES2027-online.json)");
 }
 
 static NSString* gateCommand(NSURL* url) {
