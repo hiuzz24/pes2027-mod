@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 
 #include <cctype>
+#include <cmath>
 #include <fstream>
 
 namespace zsv {
