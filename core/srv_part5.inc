@@ -296,8 +296,19 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
           if (serial > 0) {
             JStr pr = loadProgression(serial);
             if (pr && !pr->empty()) {
-              cp -= Object::parse(*pr)->optInt("_spent_total", 0);
-              if (cp < 0) cp = 0;
+              int spent = Object::parse(*pr)->optInt("_spent_total", 0);
+              if (spent > cp && lp && !lp->empty() && cur != jo &&
+                  baseParams && curParams && baseParams->length() >= 41 && curParams->length() >= 41) {
+                std::string key = "ziru_overbudget_backup_" + str(serial);
+                if (!loadMeta(key)) ziruDb->saveMeta(key, *lp);
+                if (!loadMeta(key + "_progression")) ziruDb->saveMeta(key + "_progression", *pr);
+                for (int idx = 14; idx <= 40; ++idx)
+                  curParams->put(idx, baseParams->optInt(idx, 0));
+                ziruDb->saveProgression(serial, newObj()->put("_spent_total", 0)->toString());
+                logRequest("ZIRU_AUTO_BUDGET", "Restored overbudget player serial=" + str(serial));
+              } else {
+                cp = std::max(0, cp - spent);
+              }
             }
           }
           li->put("customize_point", cp);

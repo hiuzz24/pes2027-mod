@@ -366,6 +366,21 @@ int main() {
       }
       check(retainedZero, "valid skill zero survives save, process restart and login");
     }
+    {
+      OfflineServer s(cfg);
+      auto inflated = Object::parse(*s.loadPlayer(101));
+      inflated->getJSONArray("parameters")->put(14, 100);
+      s.ziruDb->savePlayer(101, 1, inflated->toString());
+      s.ziruDb->saveProgression(101, R"({"_spent_total":60,"SHOOT":60})");
+      auto repaired = s.refreshZiruGameplayerFromCanonical(inflated);
+      check(repaired->getJSONArray("parameters")->getInt(14) == 70 &&
+          repaired->getJSONObject("level_info")->getInt("customize_point") == 8,
+          "overbudget Auto save returns to canonical stats and native points");
+      check(Object::parse(*s.loadProgression(101))->getInt("_spent_total") == 0,
+          "obsolete overbudget progression is cleared");
+      check(s.loadMeta("ziru_overbudget_backup_101") && s.loadMeta("ziru_overbudget_backup_101_progression"),
+          "overbudget player and progression are backed up before repair");
+    }
     std::filesystem::create_directories(root + "/kill-save");
     pid_t child = fork();
     check(child >= 0, "spawn abrupt-exit save test");
