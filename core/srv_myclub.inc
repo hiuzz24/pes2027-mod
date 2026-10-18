@@ -453,7 +453,7 @@ static void applyZiruMessiMaxProgression(const ObjP& jo) {
       li->put("level", lim);
       // Match Ronaldo's spare-point behavior. Careerplan separately accepts
       // this budget and reapplies the elite floor after each edit.
-      li->put("customize_point", ziruProgressionBudget(lim));
+      li->put("customize_point", (lim - 1) * 2);
       li->put("exp_current_level", 0);
       li->put("exp_to_next_level", 0);
     }
