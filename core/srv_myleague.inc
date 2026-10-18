@@ -11,16 +11,34 @@ Response handleZiruGetMyclubPlayerData(const std::optional<Bytes>& b) {
     if (b) {
       decodeZiruPlayerDataRequest(*b);
       int64_t j = ziruPlayerDataId;
+      int64_t j2 = ziruPlayerDataSerial;
       ObjP w, gp;
       ArrP params;
-      if (j > 0) {
+      // Opponent cards use synthetic serials. Serve the progressed card shown
+      // in Division, rather than the level-one catalog record with the same ID.
+      if (j > 0 && j2 >= 800000000000000LL && j2 < 900000000000000LL) {
+        ObjP active = z27Meta("z27_active_match");
+        if (active) {
+          ObjP opponent = z27Opponent(active);
+          ArrP players = opponent->optJSONArray("player_list");
+          for (int i = 0; players && i < players->length(); ++i) {
+            ObjP candidate = players->getJSONObject(i);
+            ObjP id = candidate->getJSONObject("gameplayer_id");
+            if (id->getLong("id") == j && id->getLong("serial") == j2) {
+              gp = candidate;
+              params = gp->optJSONArray("parameters");
+              break;
+            }
+          }
+        }
+      }
+      if (!gp && j > 0) {
         w = getZiruPlayerWrapper(Value((long long)j), false);
         if (!w) w = getZiruPlayerWrapperByBaseId((int32_t)(j & 0xFFFFFF));
       }
-      if (w && (gp = w->optJSONObject("gameplayer"))) {
+      if (!gp && w && (gp = w->optJSONObject("gameplayer"))) {
         params = gp->optJSONArray("parameters");
       }
-      int64_t j2 = ziruPlayerDataSerial;
       if (!gp && j2 > 0) {
         JStr lp = loadPlayer(j2);
         if (lp && !lp->empty()) {
