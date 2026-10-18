@@ -196,8 +196,10 @@ int main() {
       auto d1 = Object::parse(player->toString());
       s.z27ProgressOpponentPlayer(d10, 10);
       s.z27ProgressOpponentPlayer(d1, 1);
-      check(d1->getJSONArray("parameters")->getInt(20) > d10->getJSONArray("parameters")->getInt(20),
-          "Division 1 opponent gains more finishing than Division 10");
+      check(d1->getJSONArray("parameters")->getInt(20) == d10->getJSONArray("parameters")->getInt(20) &&
+            d10->getJSONArray("parameters")->getInt(20) > 50 &&
+            d10->getJSONObject("level_info")->getInt("level") == 40,
+          "all Division opponents receive full progression");
       check(player->getJSONArray("parameters")->getInt(20) == 50,
           "opponent progression does not mutate the shared player record");
       player->getJSONObject("gameplayer_id")->put("serial", 404);
@@ -458,11 +460,12 @@ int main() {
       check(sqlite3_exec(s.ziruDb->db, "DELETE FROM meta WHERE k='z27_div10_reset_v3'", nullptr, nullptr, nullptr) == SQLITE_OK, "prepare legacy save");
       check(s.z27State()->getInt("division") == 10, "legacy rank migrates to D10");
       auto selected = call(s, "CMD_GET_VSCOM_OPPONENT");
-      check(selected->getString("cpu_level") == "NORMAL" && s.z27Active()->getInt("division") == 10, "cached opponent migrates with D10");
+      check(selected->getString("cpu_level") == "LEGEND" && s.z27Active()->getInt("division") == 10, "cached opponent migrates with D10 at maximum difficulty");
       active = s.z27Meta("z27_active_match");
       active->put("division", 10)->put("cpu_level", "NORMAL");
       s.ziruDb->saveMeta("z27_active_match", active->toString());
-      check(call(s, "CMD_GET_VSCOM_OPPONENT")->getString("cpu_level") == "NORMAL", "already-migrated D10 saves maintain D10 snapshots");
+      check(call(s, "CMD_GET_VSCOM_OPPONENT", newObj()->put("cpu_level", "NORMAL"))->getString("cpu_level") == "LEGEND",
+          "client difficulty request cannot reduce Division AI");
       sqlite3_exec(s.ziruDb->db, "PRAGMA query_only=ON", nullptr, nullptr, nullptr);
       bool failed = false;
       try { s.ziruDb->saveMeta("must_not_succeed", "1"); } catch (const std::exception&) { failed = true; }
