@@ -376,6 +376,7 @@ void z27InfoState(ObjP jo, const ObjP& st) {
   ObjP li = nn(jo)->optJSONObject("league_info");
   if (li) jo = li;
   int d = st->getInt("division");
+  int rating = st->optInt("rating", d == 1 ? 1800 : 0);
   jo->put("current_division", d)
       ->put("personal_best_division", st->getInt("best"))
       ->put("current_point", st->getInt("point"))
@@ -385,8 +386,8 @@ void z27InfoState(ObjP jo, const ObjP& st) {
       ->put("point_relegated", std::max(0, z27Promotion(d) - 6))
       ->put("can_skip", "NO")
       ->put("is_com_match", "YES")
-      ->put("rating", 0)
-      ->put("pre_rating", 0)
+      ->put("rating", rating)
+      ->put("pre_rating", st->optInt("pre_rating", rating))
       ->put("is_first_enter", "NO")
       ->put("is_first_best_division", "NO")
       ->put("simple_ranking", newArr())
@@ -406,6 +407,46 @@ ObjP z27Active() {
   return m;
 }
 
+// Opponent cards in the pack have a level limit, but their ability array still
+// contains level-one values. Allocate the full budget on a private match copy.
+void z27MaxOpponentPlayer(const ObjP& player) {
+  if (!player) return;
+  ArrP params = player->optJSONArray("parameters");
+  ObjP level = player->optJSONObject("level_info");
+  if (!params || params->length() < 145 || !level) return;
+  int limit = std::max(1, std::min(100, level->optInt("level_limit", 1)));
+  int budget = ziruProgressionBudget(limit);
+  const char* const groups[] = {"SHOOT", "PASS", "DRIBLE", "QUICKNESS", "STRENGTH",
+                                "AERIAL", "DEFENCE", "GK1", "GK2", "GK3"};
+  int weight[10] = {};
+  int pos = params->optInt(0, 0);
+  if (pos == 1) { weight[7] = 4; weight[8] = 4; weight[9] = 4; weight[5] = 1; }
+  else if (pos == 2) { weight[6] = 5; weight[5] = 3; weight[4] = 2; weight[1] = 1; }
+  else if (pos == 3 || pos == 4) { weight[6] = 4; weight[4] = 3; weight[1] = 2; weight[3] = 2; }
+  else if (pos == 5 || pos == 6) { weight[1] = 4; weight[6] = 3; weight[4] = 2; weight[2] = 2; }
+  else if (pos == 7 || pos == 8 || pos == 9) { weight[1] = 3; weight[2] = 3; weight[3] = 3; weight[4] = 2; }
+  else { weight[0] = 4; weight[2] = 3; weight[3] = 3; weight[4] = 2; }
+  int count[10] = {}, spent[10] = {};
+  while (budget > 0) {
+    int best = -1;
+    for (int i = 0; i < 10; i++) {
+      int cost = 1 + count[i] / 4;
+      if (!weight[i] || count[i] >= 12 || cost > budget) continue;
+      if (best < 0 || count[i] * weight[best] < count[best] * weight[i] ||
+          (count[i] * weight[best] == count[best] * weight[i] && weight[i] > weight[best])) best = i;
+    }
+    if (best < 0) break;
+    int cost = 1 + count[best] / 4;
+    budget -= cost;
+    spent[best] += cost;
+    count[best]++;
+  }
+  ObjP progression = newObj();
+  for (int i = 0; i < 10; i++) progression->put(groups[i], spent[i]);
+  z27ApplyProgressionPoints(params, progression, Array::parse(params->toString()));
+  level->put("level", limit)->put("exp_current_level", 0)->put("exp_to_next_level", 0);
+}
+
 ObjP z27Opponent(const ObjP& active) {
   ObjP tpl = loadZiruJsonAssetObject("responses/ZIRU_GET_VSCOM_OPPONENT.json");
   ObjP prof = active->getJSONObject("profile");
@@ -417,6 +458,7 @@ ObjP z27Opponent(const ObjP& active) {
     ObjP gp = z27Copy(w->getJSONObject("gameplayer"));
     ObjP gid = newObj()->put("id", (long long)ids->getLong(i))->put("serial", (long long)(800000000000000LL + (int64_t)(prof->getInt("profile_id") * 100) + i));
     gp->put("gameplayer_id", gid)->put("uniform_number", i + 1);
+    z27MaxOpponentPlayer(gp);
     players->put(gp);
     refs->put(newObj()->put("gameplayer_id", z27Copy(gid))->put("uniform_number", i + 1));
   }
@@ -436,19 +478,6 @@ ObjP z27Opponent(const ObjP& active) {
   for (int i = 0; i < 40; i++) order->put(i < 23 ? i : 255);
   plan->getJSONObject("match_plan_settings")->put("order", order)->put("captain", 1)->put("set_piece_taker", Array::parse("[7,7,10,7,7,7]"));
   sd->put("player_list", refs);
-  int div = active->optInt("division", 10);
-  if (div <= 3) {
-    for (int i = 0; i < players->length(); i++) {
-      ObjP p = players->getJSONObject(i);
-      ObjP li = p->optJSONObject("level_info");
-      if (li) {
-        int lim = li->optInt("level_limit", li->optInt("level", 1));
-        li->put("level", lim);
-        li->put("exp_current_level", 0);
-        li->put("exp_to_next_level", 0);
-      }
-    }
-  }
   tpl->put("player_list", players)
       ->put("team_data", z27Copy(active->getJSONObject("away")))
       ->put("game_id", (long long)active->getLong("game_id"))
@@ -692,6 +721,17 @@ Response z27Result() {
       if (giveup && a <= b) res = "LOSE";
       int div = st->getInt("division");
       int pt = st->getInt("point");
+      if (div == 1) {
+        // Approximate the game's Division 1 rating locally; the official
+        // server's exact formula is not available in this offline mode.
+        int previous = std::max(0, st->optInt("rating", 1800));
+        double expected = 1.0 / (1.0 + std::pow(10.0, (1800.0 - previous) / 400.0));
+        double actual = res == "WIN" ? 1.0 : (res == "DRAW" ? 0.5 : 0.0);
+        int change = (int)std::lround(24.0 * (actual - expected));
+        if (res == "WIN") change = std::max(1, change);
+        if (res == "LOSE") change = std::min(-1, change);
+        st->put("pre_rating", previous)->put("rating", std::max(0, previous + change));
+      }
       int gain;
       if (res == "WIN") gain = 3;
       else if (res == "DRAW") gain = 1;
