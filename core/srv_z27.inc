@@ -599,10 +599,11 @@ int32_t z27Promotion(int d) { return ((10 - d) * 2) + 6; }
 
 void z27Info(const ObjP& jo) { z27InfoState(jo, z27State()); }
 
-void z27InfoState(ObjP jo, const ObjP& st) {
+void z27InfoState(ObjP jo, const ObjP& st, bool matchResult = false) {
   ObjP li = nn(jo)->optJSONObject("league_info");
   if (li) jo = li;
   int d = st->getInt("division");
+  int rating = st->optInt("rating", d == 1 ? 1800 : 0);
   jo->put("current_division", d)
       ->put("personal_best_division", st->getInt("best"))
       ->put("current_point", st->getInt("point"))
@@ -612,8 +613,8 @@ void z27InfoState(ObjP jo, const ObjP& st) {
       ->put("point_relegated", std::max(0, z27Promotion(d) - 6))
       ->put("can_skip", "NO")
       ->put("is_com_match", "YES")
-      ->put("rating", 0)
-      ->put("pre_rating", 0)
+      ->put("rating", rating)
+      ->put("pre_rating", matchResult ? st->optInt("pre_rating", rating) : rating)
       ->put("is_first_enter", "NO")
       ->put("is_first_best_division", "NO")
       ->put("simple_ranking", newArr())
@@ -1164,6 +1165,17 @@ Response z27Result() {
       if (giveup && a <= b) res = "LOSE";
       int div = st->getInt("division");
       int pt = st->getInt("point");
+      if (div == 1) {
+        // The offline server has no Konami rating service. Use a bounded
+        // Elo-style estimate against a Division 1 AI rating of 1800.
+        int previous = std::max(0, st->optInt("rating", 1800));
+        double expected = 1.0 / (1.0 + std::pow(10.0, (1800.0 - previous) / 400.0));
+        double actual = res == "WIN" ? 1.0 : (res == "DRAW" ? 0.5 : 0.0);
+        int change = (int)std::lround(24.0 * (actual - expected));
+        if (res == "WIN") change = std::max(1, change);
+        if (res == "LOSE") change = std::min(-1, change);
+        st->put("pre_rating", previous)->put("rating", std::max(0, previous + change));
+      }
       int gain;
       if (res == "WIN") gain = 3;
       else if (res == "DRAW") gain = 1;
@@ -1180,9 +1192,10 @@ Response z27Result() {
       bool roundEnded = nm >= 10 || (div > 1 && np >= z27Promotion(div));
       if (roundEnded) {
         int nd;
-        if (np < z27Promotion(div) || div <= 1) nd = (np >= std::max(0, z27Promotion(div) + (-5)) || div >= 10) ? div : div + 1;
+        if (np < z27Promotion(div) || div <= 1) nd = (div <= 3 || np >= std::max(0, z27Promotion(div) - 5) || div >= 10) ? div : div + 1;
         else nd = div - 1;
         st->put("division", nd)->put("best", std::min(st->getInt("best"), nd))->put("point", 0)->put("matches", 0)->put("win", 0)->put("draw", 0)->put("lose", 0);
+        if (div > 1 && nd == 1 && !st->has("rating")) st->put("rating", 1800);
       }
       resp = nn(loadZiruJsonAssetObject("responses/ZIRU_GET_VSCOM_GAME_RESULT_TEMPLATE.json"));
       ObjP ge = resp->getJSONObject("game_end_result");
@@ -1197,7 +1210,7 @@ Response z27Result() {
       ObjP ex = ge->optJSONObject("extra_match_result");
       ObjP lm;
       if (ex && (lm = ex->optJSONObject("league_match_result"))) {
-        z27InfoState(lm, st);
+        z27InfoState(lm, st, true);
         ObjP li = lm->optJSONObject("league_info");
         if (!li) li = lm;
         li->put("is_promoted", st->getInt("division") < div ? "YES" : "NO")

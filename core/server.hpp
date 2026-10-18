@@ -7,6 +7,7 @@
 #include <dirent.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <functional>
 #include <cstdint>

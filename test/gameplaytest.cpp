@@ -429,6 +429,36 @@ int main() {
       check(s.loadMeta("ziru_overbudget_backup_101") && s.loadMeta("ziru_overbudget_backup_101_progression"),
           "overbudget player and progression are backed up before repair");
     }
+    {
+      OfflineServer s(cfg);
+      s.ziruDb->saveMeta("z27_division_state", R"({"division":1,"best":1,"point":0,"matches":9,"win":0,"draw":0,"lose":9,"sequence":0,"rating":1800,"completed":{}})");
+      s.ziruDb->saveMeta("z27_div10_reset_v3", "1");
+      auto id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id");
+      call(s, "CMD_START_GAME");
+      auto loss = result(s, id, 0, 1);
+      auto lossInfo = loss->getJSONObject("game_end_result")->getJSONObject("extra_match_result")
+          ->getJSONObject("league_match_result")->getJSONObject("league_info");
+      check(lossInfo->getInt("pre_rating") == 1800 && lossInfo->getInt("rating") == 1788,
+          "Division 1 loss shows a negative rating change");
+      check(s.z27State()->getInt("division") == 1 && s.z27State()->getInt("rating") == 1788,
+          "Division 1 retains rating across the ten-match boundary without relegation");
+      result(s, id, 0, 1);
+      check(s.z27State()->getInt("rating") == 1788, "duplicate match result cannot subtract rating twice");
+      id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id");
+      call(s, "CMD_START_GAME");
+      auto win = result(s, id, 1, 0);
+      auto winInfo = win->getJSONObject("game_end_result")->getJSONObject("extra_match_result")
+          ->getJSONObject("league_match_result")->getJSONObject("league_info");
+      check(winInfo->getInt("pre_rating") == 1788 && winInfo->getInt("rating") == 1800,
+          "Division 1 win adds rating and result shows the before-and-after values");
+      check(call(s, "CMD_GET_LEAGUE_COM_INFO")->getJSONObject("league_info")->getInt("rating") == 1800,
+          "Division 1 menu reflects committed rating");
+    }
+    {
+      OfflineServer s(cfg);
+      check(s.z27State()->getInt("rating") == 1800 && s.z27State()->getInt("division") == 1,
+          "Division 1 rating survives process restart");
+    }
     std::filesystem::create_directories(root + "/kill-save");
     pid_t child = fork();
     check(child >= 0, "spawn abrupt-exit save test");
