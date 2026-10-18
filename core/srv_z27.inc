@@ -648,7 +648,9 @@ void z27ProgressOpponentPlayer(const ObjP& player, int division) {
   const char* const groups[] = {"SHOOT", "PASS", "DRIBLE", "QUICKNESS", "STRENGTH",
                                 "AERIAL", "DEFENCE", "GK1", "GK2", "GK3"};
   int weight[10] = {};
-  int pos = params->optInt(0, 0);
+  // Catalog positions are zero-based (0=GK, 1=CB, ... 12=CF), while the
+  // weighting table below uses the one-based in-game position names.
+  int pos = params->optInt(0, 0) + 1;
   if (pos == 1) { weight[7] = 4; weight[8] = 4; weight[9] = 4; weight[5] = 2; weight[4] = 1; }
   else if (pos == 2) { weight[6] = 5; weight[5] = 3; weight[4] = 2; weight[1] = 1; weight[3] = 1; }
   else if (pos == 3 || pos == 4) { weight[6] = 4; weight[4] = 3; weight[1] = 2; weight[3] = 2; weight[2] = 1; }
@@ -698,10 +700,12 @@ ObjP z27Opponent(const ObjP& active) {
     if (params && params->length() >= 70 && ps && ps->length() > 0) {
       int st1 = ps->optInt(0, 0);
       int pos = params->optInt(0, 0);
-      int st2 = ps->length() > 1 ? ps->optInt(1, 0) : z27GetDefensiveStyle(pos, st1);
+      int st2 = z27GetDefensiveStyle(pos + 1, st1);
+      if (ps->length() > 1) ps->put(1, st2);
+      else ps->put(st2);
       params->put(61, st1);
       params->put(62, st2);
-      z27ApplyComPlayStyles(params, pos, st1);
+      z27ApplyComPlayStyles(params, pos + 1, st1);
     }
     z27ProgressOpponentPlayer(gp, active->optInt("division", 10));
     players->put(gp);
@@ -785,6 +789,18 @@ Response z27SelectOpponent() {
     }
     ObjP opp = z27Opponent(m);
     opp->put("rqid", (long long)req->optLong("rqid", 1));
+    ArrP aiPlayers = opp->getJSONArray("player_list");
+    int maxed = 0;
+    for (int i = 0; i < aiPlayers->length(); ++i) {
+      ObjP li = aiPlayers->getJSONObject(i)->getJSONObject("level_info");
+      if (li->getInt("level") == li->getInt("level_limit")) ++maxed;
+    }
+    ObjP firstAi = aiPlayers->getJSONObject(0);
+    ArrP firstParams = firstAi->getJSONArray("parameters");
+    logRequest("ZIRU_AI_STATS", "selected game=" + str(m->getLong("game_id")) +
+        " maxed=" + str(maxed) + "/" + str(aiPlayers->length()) +
+        " first_pos=" + str(firstParams->getInt(0)) +
+        " first_gk_awareness=" + str(firstParams->getInt(29)));
     logRequest("ZIRU_MATCH_SELECTED", "game=" + str(m->getLong("game_id")) + " division=" + str(m->getInt("division")) + " cpu=" + m->getString("cpu_level"));
     return serveObjectAsEncryptedMsgPack(opp);
   } catch (const std::exception& e) {
