@@ -417,7 +417,7 @@ void applyZiruRonaldoMaxProgression(const ObjP& jo) {
   }
 }
 
-void applyZiruMessiMaxProgression(const ObjP& jo) {
+static void applyZiruMessiMaxProgression(const ObjP& jo) {
   if (!jo) return;
   try {
     ObjP gid = jo->optJSONObject("gameplayer_id");
