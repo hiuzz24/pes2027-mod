@@ -2117,7 +2117,6 @@ static BOOL hookDidFinish(id self, SEL _cmd, UIApplication* app, NSDictionary* o
   // Let UE4 initialize its window and Metal graphics first!
   BOOL res = ((BOOL(*)(id, SEL, id, id))gOrigDidFinish)(self, _cmd, app, opts);
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-    installModButton(getAppWindow(self));
     if (!modsOK) showModError(getAppWindow(self), [NSString stringWithUTF8String:modError.c_str()]);
   });
 

@@ -131,7 +131,14 @@ int main() {
       check(neymar->getJSONObject("gameplayer_id")->getLong("id") == neymarEpicId,
           "Neymar Epic/Big Time card keeps its full variation ID");
     }
-    auto p = obj(R"({"gameplayer_id":{"id":1,"serial":101},"level_info":{"level":5,"level_limit":5,"customize_point":0}})");
+    auto p = obj(R"({"gameplayer_id":{"id":1,"serial":101},"level_info":{"level":1,"level_limit":5,"customize_point":0}})");
+    auto alreadyDeveloped = Object::parse(p->toString());
+    alreadyDeveloped->getJSONObject("level_info")->put("level", 5);
+    check(OfflineServer::ziruUnspentNativePoints(alreadyDeveloped) == 0,
+        "max-level source card with no unspent points must not be developed twice");
+    alreadyDeveloped->getJSONObject("level_info")->put("customize_point", 2);
+    check(OfflineServer::ziruUnspentNativePoints(alreadyDeveloped) == 2,
+        "max-level source card keeps only its native unspent points");
     auto parameters = newArr(); for (int i = 0; i < 145; ++i) parameters->put(i == 14 ? 70 : 0);
     p->put("parameters", parameters);
     auto squad = newObj()->put("player_list", newArr()->put(newObj()->put("gameplayer_id", p->getJSONObject("gameplayer_id"))))
@@ -256,13 +263,14 @@ int main() {
       auto spent = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()->put("gameplayer_use_list", newArr()->put(use)))
           ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
       check(spent->getJSONObject("level_info")->getInt("customize_point") == 2, "Auto cannot spend phantom bonus points");
-      check(spent->getJSONArray("parameters")->getInt(14) == 80, "upgraded stats returned");
+      check(spent->getJSONArray("parameters")->getInt(14) == 70,
+          "client-supplied inflated stats are replaced by native progression");
     }
     {
       OfflineServer s(cfg);
       check(s.z27State()->getInt("division") == 9, "rank survives process restart");
       auto p2 = call(s, "CMD_LOGIN")->getJSONObject("entry_info")->getJSONArray("gameplayer_list")->getJSONObject(0);
-      check(p2->getJSONObject("level_info")->getInt("customize_point") == 2 && p2->getJSONArray("parameters")->getInt(14) == 80, "training and remaining balance survive restart/login");
+      check(p2->getJSONObject("level_info")->getInt("customize_point") == 2 && p2->getJSONArray("parameters")->getInt(14) == 70, "training and remaining balance survive restart/login");
       call(s, "CMD_LOGIN"); check(s.refreshZiruGameplayerFromCanonical(p2)->getJSONObject("level_info")->getInt("customize_point") == 2, "earned points are not added repeatedly");
       auto id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id"); call(s, "CMD_START_GAME");
       result(s, id, 0, 0, true); check(s.z27State()->getInt("point") == 0, "give-up is not a draw point");

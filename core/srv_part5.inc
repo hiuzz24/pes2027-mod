@@ -292,7 +292,7 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
           li->put("exp_total", 0);
           li->put("exp_current_level", 0);
           li->put("exp_to_next_level", 0);
-          int cp = ziruProgressionBudget(lim);
+          int cp = ziruUnspentNativePoints(base);
           if (serial > 0) {
             JStr pr = loadProgression(serial);
             if (pr && !pr->empty()) {

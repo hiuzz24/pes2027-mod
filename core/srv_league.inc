@@ -1,7 +1,7 @@
 // ---- part 2 (OfflineServer.java ~800-1440): history item, leaderboards, request decoders, careerplan ----
 
-// Offline progression bonus, shared by login, recruitment, spending and reset.
-// Derive it from the level limit instead of adding to saved balances on every login.
+// Maximum points a level-one card can earn. Cards already developed in the
+// bundled data have a smaller remaining budget (see ziruUnspentNativePoints).
 int ziruProgressionBudget(int limit) { return std::max(0, limit - 1) * 2; }
 
 ObjP buildZiruLeagueHistoryItem(int64_t gameId, int32_t s0, int32_t s1) {
@@ -96,7 +96,7 @@ ArrP buildZiruMlLeaderboardV85(const std::string& key) {
 
 ObjP buildZiruResetPlayer(int64_t playerId, int64_t serial) {
   try {
-    ObjP w = getZiruPlayerWrapper(Value((long long)playerId), true);
+    ObjP w = getZiruPlayerWrapper(Value((long long)playerId), false);
     ObjP base;
     if (!w || !(base = w->optJSONObject("gameplayer"))) return nullptr;
     JStr lp = loadPlayer(serial);
@@ -121,7 +121,7 @@ ObjP buildZiruResetPlayer(int64_t playerId, int64_t serial) {
       ObjP li = Object::parse(bl->toString());
       int lim = li->optInt("level_limit", 1);
       li->put("level", lim);
-      li->put("customize_point", ziruProgressionBudget(lim));
+      li->put("customize_point", ziruUnspentNativePoints(base));
       li->put("exp_current_level", 0);
       li->put("exp_to_next_level", 0);
       jo->put("level_info", li);
@@ -424,10 +424,11 @@ ObjP getZiruPlayerWrapper(const Value& obj, bool warehouse = false) {
     ObjP gp, li;
     int lim;
     if (warehouse && (gp = jo->optJSONObject("gameplayer")) && (li = gp->optJSONObject("level_info")) && (lim = li->optInt("level_limit", 1)) > 0) {
+      int nativePoints = ziruUnspentNativePoints(gp);
       li->put("level", lim);
       li->put("exp_current_level", 0);
       li->put("exp_to_next_level", 0);
-      li->put("customize_point", ziruProgressionBudget(lim));
+      li->put("customize_point", nativePoints);
     }
     z27ApplyAppearanceAndClub(jo->optJSONObject("gameplayer"));
     return jo;
@@ -615,7 +616,11 @@ Response handleZiruCareerplan(Request& r) {
                 if (!res) fail = true;
               } else {
                 ObjP li = jo->optJSONObject("level_info");
-                if (!li || ziruCareerSpent > ziruProgressionBudget(li->optInt("level_limit", 1))) fail = true;
+                ObjP nativeWrapper = getZiruPlayerWrapper(Value((long long)ziruCareerPlayerId), false);
+                ObjP nativePlayer = nativeWrapper ? nativeWrapper->optJSONObject("gameplayer") : nullptr;
+                int budget = nativePlayer ? ziruUnspentNativePoints(nativePlayer) :
+                    (li ? ziruProgressionBudget(li->optInt("level_limit", 1)) : 0);
+                if (!li || ziruCareerSpent > budget) fail = true;
                 else {
                   ArrP params = ziruCareerParameters;
                   res = jo;
@@ -631,6 +636,13 @@ Response handleZiruCareerplan(Request& r) {
                       jo->put("parameters", np);
                     }
                   } else {
+                    ArrP bp = nativePlayer ? nativePlayer->optJSONArray("parameters") : nullptr;
+                    if (bp && bp->length() >= 145) {
+                      ArrP calculated = Array::parse(bp->toString());
+                      z27ApplyProgressionPoints(calculated, ziruCareerProgression, bp);
+                      for (int idx = 14; idx <= 40; ++idx)
+                        params->put(idx, calculated->optInt(idx, bp->optInt(idx, 0)));
+                    }
                     z28PreserveCareerTraining(jo, params);
                     jo->put("parameters", params);
                   }
@@ -641,7 +653,11 @@ Response handleZiruCareerplan(Request& r) {
               z27ApplyAppearanceAndClub(res);
               ObjP li = res->optJSONObject("level_info");
               if (li) {
-                int cp = ziruProgressionBudget(li->optInt("level_limit", 1)) - ziruCareerSpent;
+                ObjP nativeWrapper = getZiruPlayerWrapper(Value((long long)ziruCareerPlayerId), false);
+                ObjP nativePlayer = nativeWrapper ? nativeWrapper->optJSONObject("gameplayer") : nullptr;
+                int budget = nativePlayer ? ziruUnspentNativePoints(nativePlayer) :
+                    ziruProgressionBudget(li->optInt("level_limit", 1));
+                int cp = budget - ziruCareerSpent;
                 if (cp < 0) cp = 0;
                 li->put("customize_point", cp);
               }

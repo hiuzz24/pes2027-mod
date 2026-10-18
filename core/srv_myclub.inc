@@ -1,5 +1,15 @@
 // ---- MyClub: recruit / training / skills (OfflineServer.java ~105-800) ----
 
+static int ziruUnspentNativePoints(const ObjP& player) {
+  ObjP li = player ? player->optJSONObject("level_info") : nullptr;
+  if (!li) return 0;
+  int limit = std::max(1, li->optInt("level_limit", 1));
+  int level = std::max(1, std::min(limit, li->optInt("level", 1)));
+  int total = std::max(0, limit - 1) * 2;
+  int unspent = std::max(0, li->optInt("customize_point", 0));
+  return std::min(total, unspent + (limit - level) * 2);
+}
+
 void applyZiruBoosterTrainingResponse(const ObjP& r13) {
   try {
     if (!ziruItemType) return;
