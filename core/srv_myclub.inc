@@ -112,6 +112,14 @@ static inline int z27GetPositionIndexByName(const std::string& name) {
   return -1;
 }
 
+static inline const char* z27PositionNameFromPlayerId(int id) {
+  // Player position IDs on the wire differ from the aptitude indices in parameters.
+  static const char* const names[] = {
+    "", "GK", "CB", "LSB", "RSB", "DMF", "CMF", "LMF", "RMF", "OMF", "LWG", "RWG", "ST", "CF"
+  };
+  return id >= 1 && id <= 13 ? names[id] : "";
+}
+
 void applyZiruPositionTrainingResponse(const ObjP& jo) {
   try {
     if (!(ziruItemType && (*ziruItemType == "POSITION_TRAINING" || *ziruItemType == "POSITION_TRAINING_SELECT"))) return;
@@ -192,7 +200,21 @@ void applyZiruPositionTrainingResponse(const ObjP& jo) {
             }
           }
 
-          int chosen_idx = candidates[rand() % candidates.size()];
+          int chosen_idx = -1;
+          if (*ziruItemType == "POSITION_TRAINING_SELECT") {
+            std::string requested = ziruSelectedPosition.value_or("");
+            if (requested.empty()) requested = z27PositionNameFromPlayerId(ziruSelectedPositionId);
+            chosen_idx = z27GetPositionIndexByName(requested);
+            if (chosen_idx < 1 || std::find(candidates.begin(), candidates.end(), chosen_idx) == candidates.end()) {
+              logRequest("ZIRU_POSITION_V27", "[ZIRU_POSITION_SELECT_INVALID] serial=" + str(j) + " position=" + requested);
+              ObjP res = jo->optJSONObject("position_training_result");
+              if (!res) { res = newObj(); jo->put("position_training_result", res); }
+              res->put("additional_position", "")->put("is_success", "NO");
+              return;
+            }
+          } else {
+            chosen_idx = candidates[rand() % candidates.size()];
+          }
           std::string chosen_pos = names[chosen_idx];
 
           params->put(chosen_idx, 2);
@@ -218,16 +240,19 @@ void applyZiruPositionTrainingResponse(const ObjP& jo) {
           res->put("is_success", "YES");
 
           ArrP items = jo->optJSONArray("item_list");
-          if (items) {
-            for (int i8 = 0; i8 < items->length(); i8++) {
-              ObjP it = items->optJSONObject(i8);
-              ObjP item;
-              if (it && (item = it->optJSONObject("item"))) {
-                std::string t = item->optString("item_type", "");
-                if (t == "POSITION_TRAINING" || t == "POSITION_TRAINING_SELECT") it->put("inventory_num", 999999);
-              }
+          if (!items) { items = newArr(); jo->put("item_list", items); }
+          bool hasSelect = false;
+          for (int i8 = 0; i8 < items->length(); i8++) {
+            ObjP it = items->optJSONObject(i8);
+            ObjP item;
+            if (it && (item = it->optJSONObject("item"))) {
+              std::string t = item->optString("item_type", "");
+              if (t == "POSITION_TRAINING_SELECT") hasSelect = true;
+              if (t == "POSITION_TRAINING" || t == "POSITION_TRAINING_SELECT") it->put("inventory_num", 999999);
             }
           }
+          if (!hasSelect) items->put(newObj()->put("item", newObj()->put("item_type", "POSITION_TRAINING_SELECT")
+              ->put("grade", 0)->put("effect", 0))->put("inventory_num", 999999));
 
           logRequest("ZIRU_POSITION_V26", "[ZIRU_POSITION_V26] serial=" + str(j) + " slot=" + str(slot) + " position=" + chosen_pos);
           return;

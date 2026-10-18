@@ -220,6 +220,8 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
   ziruItemType = std::string("");
   ziruSkillCategory = std::string("");
   ziruTrainingIndex = -1;
+  ziruSelectedPositionId = 0;
+  ziruSelectedPosition.reset();
   ziruAbilityId = 0;
   ziruSkillCategoryCode = -1;
   ziruSkillItemEffect = 0;
@@ -251,6 +253,12 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
           }
         } else if (k == "training_index") {
           ziruTrainingIndex = u.unpackInt();
+        } else if (k == "position_id" || k == "position_training_id") {
+          ziruSelectedPositionId = u.unpackInt();
+        } else if (k == "additional_position" || k == "position") {
+          if (u.nextType() == zc::Unpacker::STRING) ziruSelectedPosition = u.unpackString();
+          else if (u.nextType() == zc::Unpacker::INTEGER) ziruSelectedPositionId = u.unpackInt();
+          else u.skipValue();
         } else if (k == "ability_id" || k == "ability_Id" || k == "skill_id" || k == "additional_skill_id") {
           ziruAbilityId = u.unpackInt();
         } else if (k == "skill_training_category_type") {
@@ -273,12 +281,24 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
                   else if (k4 == "effect") { i5 = (int32_t)u.unpackLong(); ziruSkillItemEffect = i5; }
                   else if (k4 == "grade") ziruSkillItemGrade = u.unpackInt();
                   else if (k4 == "ability_id" || k4 == "ability_Id" || k4 == "skill_id" || k4 == "additional_skill_id") ziruAbilityId = u.unpackInt();
+                  else if (k4 == "position_id" || k4 == "position_training_id") ziruSelectedPositionId = u.unpackInt();
+                  else if (k4 == "additional_position" || k4 == "position") {
+                    if (u.nextType() == zc::Unpacker::STRING) ziruSelectedPosition = u.unpackString();
+                    else if (u.nextType() == zc::Unpacker::INTEGER) ziruSelectedPositionId = u.unpackInt();
+                    else u.skipValue();
+                  }
                   else u.skipValue();
                 }
               } else if (k3 == "present_num") {
                 i6 = (int32_t)u.unpackLong();
               } else if (k3 == "ability_id" || k3 == "ability_Id" || k3 == "skill_id" || k3 == "additional_skill_id") {
                 ziruAbilityId = u.unpackInt();
+              } else if (k3 == "position_id" || k3 == "position_training_id") {
+                ziruSelectedPositionId = u.unpackInt();
+              } else if (k3 == "additional_position" || k3 == "position") {
+                if (u.nextType() == zc::Unpacker::STRING) ziruSelectedPosition = u.unpackString();
+                else if (u.nextType() == zc::Unpacker::INTEGER) ziruSelectedPositionId = u.unpackInt();
+                else u.skipValue();
               } else {
                 u.skipValue();
               }
@@ -291,6 +311,9 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
         }
       }
       zs::logi("OFFLINE_SERVER", "[ZIRU V15.7.2A ITEM] type=" + *ziruItemType + " serial=" + str(ziruTargetSerial) + " training_index=" + str(ziruTrainingIndex));
+      if (*ziruItemType == "POSITION_TRAINING_SELECT")
+        logRequest("ZIRU_POSITION_SELECT", "serial=" + str(ziruTargetSerial) + " position_id=" + str(ziruSelectedPositionId)
+            + " position=" + ziruSelectedPosition.value_or(""));
     }
   } catch (const std::exception& e) {
     zs::loge("OFFLINE_SERVER", std::string("[ZIRU V15.7.2A ITEM] decode failed ") + e.what());

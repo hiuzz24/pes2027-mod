@@ -144,6 +144,44 @@ int main() {
     asset(root, "generic.json", obj(R"({"result":"NOERR"})"));
     {
       OfflineServer s(cfg);
+      auto player = Object::parse(p->toString());
+      auto par = player->getJSONArray("parameters");
+      par->put(0, 13);
+      for (int i = 14; i <= 40; i++) par->put(i, 50);
+      player->getJSONObject("level_info")->put("level_limit", 40);
+      auto d10 = Object::parse(player->toString());
+      auto d1 = Object::parse(player->toString());
+      s.z27ProgressOpponentPlayer(d10, 10);
+      s.z27ProgressOpponentPlayer(d1, 1);
+      check(d1->getJSONArray("parameters")->getInt(20) > d10->getJSONArray("parameters")->getInt(20),
+          "Division 1 opponent gains more finishing than Division 10");
+      check(player->getJSONArray("parameters")->getInt(20) == 50,
+          "opponent progression does not mutate the shared player record");
+      player->getJSONObject("gameplayer_id")->put("serial", 404);
+      s.ziruDb->savePlayer(404, 1, player->toString());
+      auto item = newObj()->put("gameplayer_id_list", newArr()->put(player->getJSONObject("gameplayer_id")))
+          ->put("training_index", 0)->put("position_id", 2)
+          ->put("item_list", newArr()->put(newObj()->put("present_num", 1)
+              ->put("item", newObj()->put("item_type", "POSITION_TRAINING_SELECT"))));
+      s.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(item)));
+      auto response = newObj();
+      s.applyZiruPositionTrainingResponse(response);
+      check(response->getJSONObject("position_training_result")->getString("additional_position") == "CB",
+          "select position card applies the requested CB position");
+      check(Object::parse(*s.loadPlayer(404))->getJSONArray("parameters")->getInt(10) == 2,
+          "selected position persists to the player save");
+      auto items = response->getJSONArray("item_list");
+      check(items->length() == 1 && items->getJSONObject(0)->getInt("inventory_num") == 999999,
+          "post-training response restores missing select-position card");
+      item->put("position_id", 0);
+      s.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(item)));
+      response = newObj();
+      s.applyZiruPositionTrainingResponse(response);
+      check(response->getJSONObject("position_training_result")->getString("is_success") == "NO",
+          "select card with no valid choice fails instead of assigning a random position");
+    }
+    {
+      OfflineServer s(cfg);
       auto a = call(s, "CMD_CREATE_MYCLUB_SQUAD", newObj()->put("name", "First tactic"))->getJSONObject("new_squad_data");
       auto b = call(s, "CMD_CREATE_MYCLUB_SQUAD", newObj()->put("name", "Second tactic"))->getJSONObject("new_squad_data");
       check(a->getInt("squad_id") != b->getInt("squad_id"), "creating two tactics must allocate distinct IDs");

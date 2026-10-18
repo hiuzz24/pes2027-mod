@@ -131,6 +131,8 @@ class OfflineServer {
   int64_t ziruTargetPlayerId = 0;
   int64_t ziruTargetSerial = 0;
   int32_t ziruTrainingIndex = 0;
+  int32_t ziruSelectedPositionId = 0;
+  JStr ziruSelectedPosition;
 
   // ---- helpers for Android APIs ----
   std::string readAsset(const std::string& name);      // throws IOEx

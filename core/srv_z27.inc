@@ -621,6 +621,44 @@ ObjP z27Active() {
   return m;
 }
 
+void z27ProgressOpponentPlayer(const ObjP& player, int division) {
+  if (!player) return;
+  ArrP params = player->optJSONArray("parameters");
+  ObjP level = player->optJSONObject("level_info");
+  if (!params || params->length() < 145 || !level) return;
+  int limit = std::max(1, std::min(100, level->optInt("level_limit", 1)));
+  int div = std::max(1, std::min(10, division));
+  int budget = ziruProgressionBudget(limit) * (15 + (10 - div) * 85 / 9) / 100;
+  const char* const groups[] = {"SHOOT", "PASS", "DRIBLE", "QUICKNESS", "STRENGTH",
+                                "AERIAL", "DEFENCE", "GK1", "GK2", "GK3"};
+  int weight[10] = {};
+  int pos = params->optInt(0, 0);
+  if (pos == 1) { weight[7] = 4; weight[8] = 4; weight[9] = 4; weight[5] = 1; }
+  else if (pos == 2) { weight[6] = 5; weight[5] = 3; weight[4] = 2; weight[1] = 1; }
+  else if (pos == 3 || pos == 4) { weight[6] = 4; weight[4] = 3; weight[1] = 2; weight[3] = 2; }
+  else if (pos == 5 || pos == 6) { weight[1] = 4; weight[6] = 3; weight[4] = 2; weight[2] = 2; }
+  else if (pos == 7 || pos == 8 || pos == 9) { weight[1] = 3; weight[2] = 3; weight[3] = 3; weight[4] = 2; }
+  else { weight[0] = 4; weight[2] = 3; weight[3] = 3; weight[4] = 2; }
+  int count[10] = {}, spent[10] = {};
+  while (budget > 0) {
+    int best = -1;
+    for (int i = 0; i < 10; i++) {
+      int nextCost = 1 + count[i] / 4;
+      if (!weight[i] || count[i] >= 12 || nextCost > budget) continue;
+      if (best < 0 || count[i] * weight[best] < count[best] * weight[i] ||
+          (count[i] * weight[best] == count[best] * weight[i] && weight[i] > weight[best])) best = i;
+    }
+    if (best < 0) break;
+    int cost = 1 + count[best] / 4;
+    budget -= cost;
+    spent[best] += cost;
+    count[best]++;
+  }
+  ObjP progression = newObj();
+  for (int i = 0; i < 10; i++) progression->put(groups[i], spent[i]);
+  z27ApplyProgressionPoints(params, progression, Array::parse(params->toString()));
+}
+
 ObjP z27Opponent(const ObjP& active) {
   ObjP tpl = loadZiruJsonAssetObject("responses/ZIRU_GET_VSCOM_OPPONENT.json");
   ObjP prof = active->getJSONObject("profile");
@@ -648,6 +686,7 @@ ObjP z27Opponent(const ObjP& active) {
       params->put(62, st2);
       z27ApplyComPlayStyles(params, pos, st1);
     }
+    z27ProgressOpponentPlayer(gp, active->optInt("division", 10));
     players->put(gp);
     refs->put(newObj()->put("gameplayer_id", z27Copy(gid))->put("uniform_number", i + 1));
   }
