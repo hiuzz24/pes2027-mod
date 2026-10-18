@@ -489,6 +489,9 @@ int main() {
           ->getJSONObject("squad_data_away")->getJSONArray("player_list")->getJSONObject(0);
       check(aiMatch->getJSONArray("parameters")->getInt(20) == aiPlayer->getJSONArray("parameters")->getInt(20),
           "Division AI match uses the same progressed abilities as opponent screen");
+      check(aiMatch->getJSONArray("initial_booster_id_list")->getInt(0) ==
+                aiPlayer->getJSONArray("initial_booster_id_list")->getInt(0),
+          "Division AI match preserves the opponent card's booster");
       active = s.z27Meta("z27_active_match");
       active->put("division", 10)->put("cpu_level", "NORMAL");
       s.ziruDb->saveMeta("z27_active_match", active->toString());
