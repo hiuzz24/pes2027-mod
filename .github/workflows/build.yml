@@ -1,7 +1,7 @@
 name: build-dylib
 on:
   push:
-    branches: [main, feature/online-1.1]
+    branches: [main, feature/online-1.1, codex/ai-full-rating]
     tags: ['v*']
   workflow_dispatch:
 permissions:
