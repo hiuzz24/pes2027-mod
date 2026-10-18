@@ -576,6 +576,9 @@ Response handleZiruCareerplan(Request& r) {
         Bytes body = readBody(r, n, got);
         if (got == n) {
           decodeZiruCareerplanRequest(body);
+          logRequest("ZIRU_CAREER_INPUT", "id=" + str(ziruCareerPlayerId) +
+              " serial=" + str(ziruCareerSerial) + " spent=" + str(ziruCareerSpent) +
+              " params=" + str(ziruCareerParameters ? ziruCareerParameters->length() : 0));
           if (ziruCareerPlayerId > 0) {
             zs::Prefs& prefs = sp("almanac_state");
             std::string s = prefs.getString("recruited_players", "");
@@ -620,18 +623,24 @@ Response handleZiruCareerplan(Request& r) {
                 ObjP nativePlayer = nativeWrapper ? nativeWrapper->optJSONObject("gameplayer") : nullptr;
                 int budget = nativePlayer ? ziruUnspentNativePoints(nativePlayer) :
                     (li ? ziruProgressionBudget(li->optInt("level_limit", 1)) : 0);
-                if (isZiruMessiCard(ziruCareerPlayerId)) budget = ziruProgressionBudget(36);
-                if (!li || ziruCareerSpent > budget) fail = true;
+                if (isZiruMessiCard(ziruCareerPlayerId)) {
+                  JStr previous = loadProgression(ziruCareerSerial);
+                  int priorSpent = previous && !previous->empty() ?
+                      std::max(0, Object::parse(*previous)->optInt("_spent_total", 0)) : 0;
+                  budget = ziruProgressionBudget(36) + std::min(1000, priorSpent);
+                }
+                if (!li || ziruCareerSpent > budget) {
+                  logRequest("ZIRU_CAREER_REJECT", "id=" + str(ziruCareerPlayerId) +
+                      " spent=" + str(ziruCareerSpent) + " budget=" + str(budget) +
+                      " level_info=" + std::string(li ? "YES" : "NO"));
+                  fail = true;
+                }
                 else {
                   ArrP params = ziruCareerParameters;
                   res = jo;
                   if (!params || params->length() < 145) {
                     ObjP baseWrapper = getZiruPlayerWrapper(Value((long long)ziruCareerPlayerId), false);
                     ObjP basePlayer = baseWrapper ? baseWrapper->optJSONObject("gameplayer") : nullptr;
-                    if (basePlayer && isZiruMessiCard(ziruCareerPlayerId)) {
-                      basePlayer = Object::parse(basePlayer->toString());
-                      applyZiruMessiMaxProgression(basePlayer);
-                    }
                     ArrP bp = basePlayer ? basePlayer->optJSONArray("parameters") : nullptr;
                     if (!bp) bp = jo->optJSONArray("parameters");
                     if (bp) {
@@ -673,9 +682,10 @@ Response handleZiruCareerplan(Request& r) {
                 if (cp < 0) cp = 0;
                 li->put("customize_point", cp);
               }
-              applyZiruMessiMaxProgression(res, ziruCareerSpent > 0);
+              applyZiruMessiMaxProgression(res, isZiruMessiCard(ziruCareerPlayerId));
               ObjP prog = ziruCareerProgression;
               prog->put("_spent_total", ziruCareerSpent);
+              if (isZiruMessiCard(ziruCareerPlayerId)) prog->put("_messi_user_edited", 1);
               ziruDb->saveProgression(ziruCareerSerial, prog->toString());
               ziruDb->savePlayer(ziruCareerSerial, ziruCareerPlayerId, res->toString());
               logRequest("ZIRU_SQLITE", "[ZIRU_SQLITE_PLAYER_SAVED] careerplan");

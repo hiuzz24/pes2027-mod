@@ -322,12 +322,12 @@ int main() {
       auto editedMessi = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()
           ->put("gameplayer_use_list", newArr()->put(messiUse)))
           ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
-      check(editedMessi->getJSONArray("parameters")->getInt(17) == 99 &&
+      check(editedMessi->getJSONArray("parameters")->getInt(17) == 0 &&
           editedMessi->getJSONArray("parameters")->getInt(37) > 0 &&
           editedMessi->getJSONObject("level_info")->getInt("customize_point") == 70,
-          "editing Messi retains elite stats, trained attributes and Ronaldo-like spare points");
+          "editing Messi starts from native attributes rather than the forced preset");
       auto resumedMessi = s.refreshZiruGameplayerFromCanonical(editedMessi);
-      check(resumedMessi->getJSONArray("parameters")->getInt(17) == 99 &&
+      check(resumedMessi->getJSONArray("parameters")->getInt(17) == 0 &&
           resumedMessi->getJSONArray("parameters")->getInt(37) > 0 &&
           Object::parse(*s.loadProgression(606))->getInt("_spent_total") == 4,
           "Messi progression survives login instead of being repaired as overbudget");
@@ -349,6 +349,22 @@ int main() {
           matchMessi->getJSONArray("parameters")->getInt(17) == 90 &&
           matchMessi->getJSONArray("parameters")->getInt(20) == 102,
           "Messi's chosen attributes survive login and match startup");
+      auto moreMessiUse = newObj()->put("gameplayer_id", messiId)
+          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 74)));
+      auto moreMessi = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()
+          ->put("gameplayer_use_list", newArr()->put(moreMessiUse)))
+          ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
+      check(moreMessi->getJSONArray("parameters")->getInt(17) == 0 &&
+          moreMessi->getJSONObject("level_info")->getInt("customize_point") == 70,
+          "Messi can spend new points after an earlier allocation without reverting to the preset");
+      auto resetMessi = newObj()->put("gameplayer_id", messiId)->put("use_list", newArr());
+      auto blankMessi = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()
+          ->put("gameplayer_use_list", newArr()->put(resetMessi)))
+          ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
+      check(blankMessi->getJSONArray("parameters")->getInt(17) == 0 &&
+          s.refreshZiruGameplayerFromCanonical(blankMessi)->getJSONArray("parameters")->getInt(17) == 0 &&
+          Object::parse(*s.loadProgression(606))->getInt("_messi_user_edited") == 1,
+          "resetting Messi does not reapply the fixed preset on the next login");
       s.ziruDb->deletePlayerState(606);
       asset(root, "ZIRU_PLAYER_RECORDS.json", newObj()->put("1", newObj()->put("gameplayer", p)));
       s.ziruPlayerRecordsCache.reset();

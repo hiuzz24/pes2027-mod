@@ -354,8 +354,11 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
         bool messiEdited = false;
         if (serial > 0 && isZiruMessiCard(id)) {
           JStr progression = loadProgression(serial);
-          messiEdited = progression && !progression->empty() &&
-              Object::parse(*progression)->optInt("_spent_total", 0) > 0;
+          if (progression && !progression->empty()) {
+            ObjP state = Object::parse(*progression);
+            messiEdited = state->optInt("_messi_user_edited", 0) > 0 ||
+                state->optInt("_spent_total", 0) > 0;
+          }
         }
         applyZiruMessiMaxProgression(cur, messiEdited);
         applyZiruWeakFootFix(cur);
