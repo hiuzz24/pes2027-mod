@@ -215,8 +215,24 @@ ObjP z27Squad(int32_t id) {
       ObjP gid = item ? item->optJSONObject("gameplayer_id") : nullptr;
       if (gid) {
         int64_t pid = gid->optLong("id", 0);
+        int64_t serial = gid->optLong("serial", 0);
+        if (pid > 0 && pid <= 0xFFFFFF && serial > 0) {
+          JStr saved = loadPlayer(serial);
+          if (saved) {
+            ObjP player = Object::parse(*saved);
+            if (player->optJSONObject("gameplayer")) player = player->getJSONObject("gameplayer");
+            ObjP savedGid = player->optJSONObject("gameplayer_id");
+            int64_t savedId = savedGid ? savedGid->optLong("id", 0) : 0;
+            if (savedId > 0xFFFFFF && (savedId & 0xFFFFFF) == pid &&
+                savedGid->optLong("serial", serial) == serial) {
+              gid->put("id", (long long)savedId);
+              pid = savedId;
+              mod = true;
+            }
+          }
+        }
         int32_t bid = (int32_t)(pid & 0xFFFFFF);
-        if ((bid == 44379 || bid == 40352) && pid > 0xFFFFFF) {
+        if (bid == 44379 && pid > 0xFFFFFF) {
           gid->put("id", (long long)bid);
           mod = true;
         }
@@ -497,8 +513,10 @@ void z27Restore(const ObjP& jo) {
           ObjP sv = Object::parse(*lp);
           if (sv->optJSONObject("gameplayer")) sv = sv->getJSONObject("gameplayer");
           int64_t svPid = sv->getJSONObject("gameplayer_id")->getLong("id");
-          if (svPid == pPid || (svPid & 0xFFFFFF) == bid) {
-            if ((bid == 44379 || bid == 40352) && sv->optString("type", "NORMAL") == "NORMAL") {
+          // A saved base card must not replace a distinct Epic/Big Time
+          // variation that has the same lower 24-bit player ID.
+          if (svPid == pPid) {
+            if (bid == 44379 && sv->optString("type", "NORMAL") == "NORMAL") {
               sv->getJSONObject("gameplayer_id")->put("id", (long long)bid);
             }
             z27ApplyAppearanceAndClub(sv);

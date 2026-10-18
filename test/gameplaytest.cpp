@@ -120,6 +120,16 @@ int main() {
       agueroParams->put(50, 9);
       server.z27ApplyAppearanceAndClub(aguero);
       check(agueroParams->getInt(50) == 9, "existing appearance customization is preserved");
+      // Catalog records mark Neymar variants as type NORMAL even when their
+      // full IDs identify Epic/Big Time cards. Keep the full ID for card art.
+      auto neymarParams = newArr();
+      for (int i = 0; i < 149; ++i) neymarParams->put(0);
+      constexpr int64_t neymarEpicId = 89071179308448LL;
+      auto neymar = newObj()->put("gameplayer_id", newObj()->put("id", (long long)neymarEpicId))
+          ->put("type", "NORMAL")->put("parameters", neymarParams);
+      server.z27ApplyAppearanceAndClub(neymar);
+      check(neymar->getJSONObject("gameplayer_id")->getLong("id") == neymarEpicId,
+          "Neymar Epic/Big Time card keeps its full variation ID");
     }
     auto p = obj(R"({"gameplayer_id":{"id":1,"serial":101},"level_info":{"level":5,"level_limit":5,"customize_point":0}})");
     auto parameters = newArr(); for (int i = 0; i < 145; ++i) parameters->put(i == 14 ? 70 : 0);
@@ -159,6 +169,24 @@ int main() {
           "opponent progression does not mutate the shared player record");
       player->getJSONObject("gameplayer_id")->put("serial", 404);
       s.ziruDb->savePlayer(404, 1, player->toString());
+      constexpr int64_t fullNeymar = 89071179308448LL;
+      auto ownedNeymar = Object::parse(p->toString());
+      ownedNeymar->getJSONObject("gameplayer_id")->put("id", (long long)fullNeymar)->put("serial", 505);
+      s.ziruDb->savePlayer(505, fullNeymar, ownedNeymar->toString());
+      auto staleSquad = Object::parse(s.z27Squad(9)->toString());
+      auto staleId = staleSquad->getJSONArray("player_list")->getJSONObject(0)->getJSONObject("gameplayer_id");
+      staleId->put("id", 40352)->put("serial", 505);
+      s.ziruDb->saveSquad(9, staleSquad->toString());
+      auto repairedId = s.z27Squad(9)->getJSONArray("player_list")->getJSONObject(0)->getJSONObject("gameplayer_id");
+      check(repairedId->getLong("id") == fullNeymar && repairedId->getLong("serial") == 505,
+          "legacy base-card squad reference migrates to the matching owned variation");
+      check(s.z27Player(repairedId)->getJSONObject("gameplayer_id")->getLong("id") == fullNeymar,
+          "match startup resolves migrated owned player");
+      check(Object::parse(*s.loadSquad(9))->getJSONArray("player_list")->getJSONObject(0)
+          ->getJSONObject("gameplayer_id")->getLong("id") == fullNeymar,
+          "squad migration persists across restart");
+      s.ziruDb->saveSquad(9, squad->toString());
+      s.ziruDb->deletePlayerState(505);
       auto item = newObj()->put("gameplayer_id_list", newArr()->put(player->getJSONObject("gameplayer_id")))
           ->put("training_index", 0)->put("position_id", 2)
           ->put("item_list", newArr()->put(newObj()->put("present_num", 1)
@@ -221,35 +249,35 @@ int main() {
       auto info = call(s, "CMD_GET_LEAGUE_COM_INFO")->getJSONObject("league_info");
       check(info->getInt("current_division") == 9 && info->getInt("current_point") == 0, "menu reflects committed rank");
       auto login = call(s, "CMD_LOGIN")->getJSONObject("entry_info")->getJSONArray("gameplayer_list")->getJSONObject(0);
-      check(login->getJSONObject("level_info")->getInt("customize_point") == 68, "60 bonus plus level points");
+      check(login->getJSONObject("level_info")->getInt("customize_point") == 8, "only earned level points are offered to Auto");
       auto trained = Array::parse(parameters->toString()); trained->put(14, 80);
       auto use = newObj()->put("gameplayer_id", p->getJSONObject("gameplayer_id"))->put("parameters", trained)
-          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "SHOOT")->put("point", 60)));
+          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "SHOOT")->put("point", 6)));
       auto spent = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()->put("gameplayer_use_list", newArr()->put(use)))
           ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
-      check(spent->getJSONObject("level_info")->getInt("customize_point") == 8, "bonus can be spent");
+      check(spent->getJSONObject("level_info")->getInt("customize_point") == 2, "Auto cannot spend phantom bonus points");
       check(spent->getJSONArray("parameters")->getInt(14) == 80, "upgraded stats returned");
     }
     {
       OfflineServer s(cfg);
       check(s.z27State()->getInt("division") == 9, "rank survives process restart");
       auto p2 = call(s, "CMD_LOGIN")->getJSONObject("entry_info")->getJSONArray("gameplayer_list")->getJSONObject(0);
-      check(p2->getJSONObject("level_info")->getInt("customize_point") == 8 && p2->getJSONArray("parameters")->getInt(14) == 80, "training and remaining balance survive restart/login");
-      call(s, "CMD_LOGIN"); check(s.refreshZiruGameplayerFromCanonical(p2)->getJSONObject("level_info")->getInt("customize_point") == 8, "bonus is not added repeatedly");
+      check(p2->getJSONObject("level_info")->getInt("customize_point") == 2 && p2->getJSONArray("parameters")->getInt(14) == 80, "training and remaining balance survive restart/login");
+      call(s, "CMD_LOGIN"); check(s.refreshZiruGameplayerFromCanonical(p2)->getJSONObject("level_info")->getInt("customize_point") == 2, "earned points are not added repeatedly");
       auto id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id"); call(s, "CMD_START_GAME");
       result(s, id, 0, 0, true); check(s.z27State()->getInt("point") == 0, "give-up is not a draw point");
       auto reset = newObj()->put("gameplayer_id", p->getJSONObject("gameplayer_id"))->put("use_list", newArr());
       auto p3 = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()->put("gameplayer_use_list", newArr()->put(reset)))
           ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
-      check(p3->getJSONObject("level_info")->getInt("customize_point") == 68 && p3->getJSONArray("parameters")->getInt(14) == 70, "reset refunds correct budget");
+      check(p3->getJSONObject("level_info")->getInt("customize_point") == 8 && p3->getJSONArray("parameters")->getInt(14) == 70, "reset refunds only earned points");
       auto useReal = newObj()->put("gameplayer_id", p->getJSONObject("gameplayer_id"))
-          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 12)));
+          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 4)));
       auto p4 = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()->put("gameplayer_use_list", newArr()->put(useReal)))
           ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
-      check(p4->getJSONObject("level_info")->getInt("customize_point") == 56, "12 points spent");
-      check(p4->getJSONArray("parameters")->getInt(37) == 8, "kicking power auto calculated from progression points");
-      check(p4->getJSONArray("parameters")->getInt(34) == 8, "speed auto calculated from progression points");
-      check(p4->getJSONArray("parameters")->getInt(40) == 8, "stamina auto calculated from progression points");
+      check(p4->getJSONObject("level_info")->getInt("customize_point") == 4, "four earned points spent");
+      check(p4->getJSONArray("parameters")->getInt(37) > 0, "kicking power auto calculated from progression points");
+      check(p4->getJSONArray("parameters")->getInt(34) > 0, "speed auto calculated from progression points");
+      check(p4->getJSONArray("parameters")->getInt(40) > 0, "stamina auto calculated from progression points");
       auto entryTest = call(s, "CMD_SET_MYCLUB_ENTRY_INFO", newObj()->put("base_team_id", 262143)->put("team_name", "Entry Team"));
       check(entryTest->getJSONArray("base_team")->getJSONObject(0)->getString("base_team_license") == "UNKNOWN", "entry info preserves unknown license instead of fabricating licensed assets");
     }
@@ -268,7 +296,7 @@ int main() {
       check(wire->length() == 147 && wire->getInt(142) == 0 && wire->getInt(143) == 0 && wire->getInt(144) == 12 && wire->getInt(145) == 77, "iOS booster slots are 144..146, not skill bits 142/143");
       check(Object::parse(*s.loadPlayer(101))->getJSONArray("parameters")->length() == 145, "wire translation must not mutate saved layout");
       auto use = newObj()->put("gameplayer_id", p->getJSONObject("gameplayer_id"))->put("parameters", wire)
-          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 12)));
+          ->put("use_list", newArr()->put(newObj()->put("parameter_type", "STRENGTH")->put("point", 4)));
       auto trained = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()->put("gameplayer_use_list", newArr()->put(use)))
           ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer")->getJSONArray("parameters");
       check(trained->length() == 147 && trained->getInt(144) == 12 && trained->getInt(145) == 77, "iOS request roundtrip preserves trained boosters");

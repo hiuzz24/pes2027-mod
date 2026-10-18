@@ -79,15 +79,15 @@ void z27ApplyAppearanceAndClub(const ObjP& cur) {
     }
   }
 
-  // Fix position proficiencies and minimum rating for Calhanoglu & Mkhitaryan
-  if (base_id == 44379 || base_id == 40352) {
+  // Preserve Neymar's full variation ID and original ratings. This fallback
+  // only applies to the De Bruyne base card artwork.
+  if (base_id == 44379) {
     if (params && params->length() >= 70) {
       params->put(5, 2); // DMF full
       params->put(6, 2); // CMF full
       params->put(7, 2); // LMF full
       params->put(8, 2); // RMF full
       params->put(9, 2); // AMF full
-      if (base_id == 40352) params->put(12, 2); // SS full
       if (params->optInt(14, 0) < 80) params->put(14, 84);
     }
     ArrP origParams = cur->optJSONArray("original_parameters");
@@ -97,10 +97,9 @@ void z27ApplyAppearanceAndClub(const ObjP& cur) {
       origParams->put(7, 2);
       origParams->put(8, 2);
       origParams->put(9, 2);
-      if (base_id == 40352) origParams->put(12, 2);
       if (origParams->optInt(14, 0) < 80) origParams->put(14, 84);
     }
-    // Normalize ID to base ID so Konami engine loads 44379_.uasset / 40352_.uasset thumbnail
+    // Only De Bruyne's thumbnail fallback uses a base ID.
     if (pid > 0xFFFFFF && cur->optString("type", "NORMAL") == "NORMAL") {
       gid->put("id", (long long)base_id);
       pid = base_id;

@@ -2,7 +2,7 @@
 
 // Offline progression bonus, shared by login, recruitment, spending and reset.
 // Derive it from the level limit instead of adding to saved balances on every login.
-int ziruProgressionBudget(int limit) { return std::max(0, limit - 1) * 2 + 60; }
+int ziruProgressionBudget(int limit) { return std::max(0, limit - 1) * 2; }
 
 ObjP buildZiruLeagueHistoryItem(int64_t gameId, int32_t s0, int32_t s1) {
   try {
