@@ -685,36 +685,33 @@ void z27Restore(const ObjP& jo) {
 ObjP z27State() {
   ObjP m = z27Meta("z27_division_state");
   if (m) {
-    if (!loadMeta("z27_div10_reset_v3")) {
-      m->put("division", 10);
-      m->put("best", 10);
-      m->put("point", 0);
-      m->put("matches", 0);
-      m->put("win", 0);
-      m->put("draw", 0);
-      m->put("lose", 0);
-      ObjP active = z27Meta("z27_active_match");
-      if (active) {
-        active->put("division", 10)->put("cpu_level", z27Difficulty(10));
-        z27PutMeta("z27_active_match", active->toString());
+    // Preserve an existing division/save. Older builds used ten-match rounds;
+    // migrate once, without silently returning the player to Division 10.
+    if (m->optInt("rule_version", 0) < 3) {
+      int d = std::max(1, std::min(10, m->optInt("division", 10)));
+      if (d <= 3) {
+        int start = d == 3 ? 1300 : d == 2 ? 1400 : 1500;
+        int legacy = m->optInt("rating", 0);
+        if (legacy < 1000) legacy = start + 30 * (m->optInt("win", 0) - m->optInt("lose", 0));
+        m->put("point", std::max(0, legacy));
       }
+      m->put("rule_version", 3);
       z27PutMeta("z27_division_state", m->toString());
-      z27PutMeta("z27_div10_reset_v3", "1");
     }
     return m;
   }
-  z27PutMeta("z27_div10_reset_v3", "1");
   int div = std::max(1, std::min(10, z27Int("ziru_league_division", 10)));
   return newObj()
       ->put("division", div)
       ->put("best", std::max(div, z27Int("ziru_league_best_division", div)))
-      ->put("point", z27Int("ziru_league_point", 0))
+      ->put("point", div <= 3 ? (div == 3 ? 1300 : div == 2 ? 1400 : 1500) : z27Int("ziru_league_point", 0))
       ->put("matches", z27Int("ziru_league_matches", 0))
       ->put("win", z27Int("ziru_league_win", 0))
       ->put("draw", z27Int("ziru_league_draw", 0))
       ->put("lose", z27Int("ziru_league_lose", 0))
       ->put("sequence", z27Int("ziru_league_opponent_seq", 0))
-      ->put("completed", newObj());
+      ->put("completed", newObj())
+      ->put("rule_version", 3);
 }
 
 std::string z27Difficulty(int d) {
@@ -725,7 +722,9 @@ std::string z27Difficulty(int d) {
   return "LEGEND";
 }
 
-int32_t z27Promotion(int d) { return ((10 - d) * 2) + 6; }
+int32_t z27Promotion(int d) { return d <= 3 ? (d == 3 ? 1400 : 1500) : 7; }
+
+int32_t z27RatingFloor(int d) { return d == 3 ? 1200 : d == 2 ? 1400 : 1500; }
 
 void z27Info(const ObjP& jo) { z27InfoState(jo, z27State()); }
 
@@ -733,17 +732,19 @@ void z27InfoState(ObjP jo, const ObjP& st) {
   ObjP li = nn(jo)->optJSONObject("league_info");
   if (li) jo = li;
   int d = st->getInt("division");
+  bool rated = d <= 3;
+  int rating = rated ? st->getInt("point") : 0;
   jo->put("current_division", d)
       ->put("personal_best_division", st->getInt("best"))
       ->put("current_point", st->getInt("point"))
-      ->put("round_match_count", std::max(0, std::min(st->optInt("matches"), 10)))
-      ->put("point_promoted", d == 1 ? 30 : z27Promotion(d))
-      ->put("point_staying", std::max(0, z27Promotion(d) - 5))
-      ->put("point_relegated", std::max(0, z27Promotion(d) - 6))
+      ->put("round_match_count", std::max(0, st->optInt("matches")))
+      ->put("point_promoted", z27Promotion(d))
+      ->put("point_staying", rated ? z27RatingFloor(d) : 4)
+      ->put("point_relegated", rated ? z27RatingFloor(d) : 3)
       ->put("can_skip", "NO")
       ->put("is_com_match", "YES")
-      ->put("rating", 0)
-      ->put("pre_rating", 0)
+      ->put("rating", rating)
+      ->put("pre_rating", st->optInt("pre_rating", rating))
       ->put("is_first_enter", "NO")
       ->put("is_first_best_division", "NO")
       ->put("simple_ranking", newArr())
@@ -802,10 +803,12 @@ ObjP z27Opponent(const ObjP& active) {
   ObjP sd = nn(tpl)->getJSONObject("squad_data");
   ObjP plan = sd->getJSONObject("squad_gameplan");
   ArrP form = plan->getJSONArray("formation");
+  ArrP defensive = prof->optJSONArray("defensive_coordinates");
+  if (!defensive || defensive->length() != 11) defensive = prof->getJSONArray("coordinates");
   for (int i = 0; i < form->length(); i++) {
     ObjP f = form->getJSONObject(i);
     f->put("formation_offensive", Array::parse(prof->getJSONArray("coordinates")->toString()))
-        ->put("formation_defensive", Array::parse(prof->getJSONArray("coordinates")->toString()))
+        ->put("formation_defensive", Array::parse(defensive->toString()))
         ->put("team_style", prof->getInt("team_style"))
         ->put("use_multi_formation", "NO");
     ArrP cl = f->optJSONArray("coach_link_data");
@@ -1339,25 +1342,27 @@ Response z27Result() {
       if (giveup && a <= b) res = "LOSE";
       int div = st->getInt("division");
       int pt = st->getInt("point");
-      int gain;
-      if (res == "WIN") gain = 3;
-      else if (res == "DRAW") gain = 1;
-      else gain = 0;
+      int gain = div <= 3 ? (res == "WIN" ? 30 : res == "LOSE" ? -30 : 0)
+                          : (res == "WIN" ? 3 : res == "DRAW" ? 1 : 0);
       int np = pt + gain;
       int nm = st->getInt("matches") + 1;
-      st->put("point", np)->put("matches", nm);
+      st->put("pre_rating", div <= 3 ? pt : 0)->put("point", np)->put("matches", nm);
       std::string k = res == "WIN" ? "win" : res == "DRAW" ? "draw" : "lose";
       st->put(k, st->getInt(k) + 1);
       ObjP hist = z27History(act, req, a, b, res);
       st->put("sequence", st->getInt("sequence") + 1);
-      // The menu advertises this point target. Do not hold an already qualified
-      // player in the same division until all ten fixtures have been played.
-      bool roundEnded = nm >= 10 || (div > 1 && np >= z27Promotion(div));
+      // The supplied APK uses three-match rounds through Division 4 and
+      // continuous +/-30 rating in Divisions 3-1.
+      bool roundEnded = div <= 3 ? ((div > 1 && np >= z27Promotion(div)) || np < z27RatingFloor(div))
+                                  : nm >= 3;
       if (roundEnded) {
         int nd;
-        if (np < z27Promotion(div) || div <= 1) nd = (np >= std::max(0, z27Promotion(div) + (-5)) || div >= 10) ? div : div + 1;
-        else nd = div - 1;
-        st->put("division", nd)->put("best", std::min(st->getInt("best"), nd))->put("point", 0)->put("matches", 0)->put("win", 0)->put("draw", 0)->put("lose", 0);
+        if (div <= 3) nd = np < z27RatingFloor(div) ? div + 1 : div - 1;
+        else if (np >= 7 && div > 1) nd = div - 1;
+        else if (np < 4 && div < 10) nd = div + 1;
+        else nd = div;
+        int nextPoint = nd <= 3 ? (div <= 3 ? np : 1300) : 0;
+        st->put("division", nd)->put("best", std::min(st->getInt("best"), nd))->put("point", nextPoint)->put("matches", 0)->put("win", 0)->put("draw", 0)->put("lose", 0);
       }
       resp = nn(loadZiruJsonAssetObject("responses/ZIRU_GET_VSCOM_GAME_RESULT_TEMPLATE.json"));
       ObjP ge = resp->getJSONObject("game_end_result");
