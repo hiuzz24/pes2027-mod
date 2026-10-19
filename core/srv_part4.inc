@@ -886,8 +886,10 @@ void patchZiruMyLeagueScheduleScoresV84(const ObjP& jo) {
           if (!m) continue;
           int h = m->optInt("home_team_id"), a = m->optInt("away_team_id");
           if (h != team && a != team) {
-            m->put("home_goals", ((h + a) + i) % 4);
-            m->put("away_goals", (((h * 3) + (a * 2)) + i) % 4);
+            int homeGoals = 0, awayGoals = 0;
+            ziruMlCpuFixtureScoresV86(h, a, i, homeGoals, awayGoals);
+            m->put("home_goals", homeGoals);
+            m->put("away_goals", awayGoals);
           }
         }
       }
