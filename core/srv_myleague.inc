@@ -145,6 +145,8 @@ Response handleZiruMyLeagueEnterV71() {
       int compe = req->optInt("select_compe_unit_id", 0);
       if (compe <= 0) compe = req->optInt("league_compe_unit_id", 0);
       if (team > 0) {
+        ziruLeagueSaveInt("ziru_myleague_season_counter", ziruLeagueLoadInt("ziru_myleague_season_counter", 0) + 1);
+        ziruLeagueSaveInt("ziru_myleague_apk_score_start_fixture", 1);
         if (compe <= 0) compe = ziruMyLeagueInferCompetitionV80(team);
         if (compe <= 0) compe = 113;
         ziruLeagueSaveInt("ziru_myleague_team_id", team);
