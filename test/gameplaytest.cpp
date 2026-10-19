@@ -217,8 +217,11 @@ int main() {
       result(s, id, 1, 0); check(s.z27State()->getInt("point") == 3, "duplicate result does not count twice");
       id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id"); call(s, "CMD_START_GAME");
       auto win2 = result(s, id, 2, 0);
-      check(s.z27State()->getInt("division") == 9, "promote as soon as menu target is reached");
-      check(win2->getJSONObject("game_end_result")->getJSONObject("extra_match_result")->getJSONObject("league_match_result")->getJSONObject("league_info")->getString("is_promoted") == "YES", "promotion flag");
+      check(s.z27State()->getInt("division") == 10 && s.z27State()->getInt("point") == 6, "three-match division retains six points after two wins");
+      id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id"); call(s, "CMD_START_GAME");
+      auto win3 = result(s, id, 1, 0);
+      check(s.z27State()->getInt("division") == 9, "three wins promote after the third match");
+      check(win3->getJSONObject("game_end_result")->getJSONObject("extra_match_result")->getJSONObject("league_match_result")->getJSONObject("league_info")->getString("is_promoted") == "YES", "promotion flag");
       auto info = call(s, "CMD_GET_LEAGUE_COM_INFO")->getJSONObject("league_info");
       check(info->getInt("current_division") == 9 && info->getInt("current_point") == 0, "menu reflects committed rank");
       auto login = call(s, "CMD_LOGIN")->getJSONObject("entry_info")->getJSONArray("gameplayer_list")->getJSONObject(0);
@@ -281,19 +284,22 @@ int main() {
       s.ziruPlayerRecordsCache.reset();
       auto pd = call(s, "CMD_GET_MYCLUB_PLAYER_DATA", newObj()->put("gameplayer_id", p->getJSONObject("gameplayer_id")))->getJSONArray("original_parameters");
       check(pd->length() == 147 && pd->getInt(144) == 12 && pd->getInt(145) == 77, "149-element canonical records preserve owned booster slots");
-      s.ziruDb->saveMeta("z27_division_state", R"({"division":10,"best":10,"point":0,"matches":0,"win":0,"draw":0,"lose":0,"sequence":0,"completed":{}})");
-      s.ziruDb->saveMeta("z27_div10_reset_v3", "");
+      s.ziruDb->saveMeta("z27_division_state", R"({"division":3,"best":3,"point":7,"rating":1350,"matches":2,"win":2,"draw":1,"lose":0,"sequence":0,"completed":{}})");
       auto active = s.z27Meta("z27_active_match");
       active->put("division", 10)->put("cpu_level", "NORMAL");
       s.ziruDb->saveMeta("z27_active_match", active->toString());
-      check(sqlite3_exec(s.ziruDb->db, "DELETE FROM meta WHERE k='z27_div10_reset_v3'", nullptr, nullptr, nullptr) == SQLITE_OK, "prepare legacy save");
-      check(s.z27State()->getInt("division") == 10, "legacy rank migrates to D10");
+      check(s.z27State()->getInt("division") == 3 && s.z27State()->getInt("point") == 1350, "legacy rank and rating survive rule migration");
       auto selected = call(s, "CMD_GET_VSCOM_OPPONENT");
-      check(selected->getString("cpu_level") == "NORMAL" && s.z27Active()->getInt("division") == 10, "cached opponent migrates with D10");
+      check(selected->getString("cpu_level") == "HARDEST" && s.z27Active()->getInt("division") == 3, "cached opponent follows preserved division");
       active = s.z27Meta("z27_active_match");
       active->put("division", 10)->put("cpu_level", "NORMAL");
       s.ziruDb->saveMeta("z27_active_match", active->toString());
-      check(call(s, "CMD_GET_VSCOM_OPPONENT")->getString("cpu_level") == "NORMAL", "already-migrated D10 saves maintain D10 snapshots");
+      check(call(s, "CMD_GET_VSCOM_OPPONENT")->getString("cpu_level") == "HARDEST", "already-migrated saves maintain active division");
+      auto ratedId = s.z27Active()->getLong("game_id");
+      call(s, "CMD_START_GAME");
+      result(s, ratedId, 1, 0);
+      check(s.z27State()->getInt("point") == 1380 && s.z27State()->getInt("division") == 3,
+            "Division 3 win adds 30 rating without resetting the save");
       sqlite3_exec(s.ziruDb->db, "PRAGMA query_only=ON", nullptr, nullptr, nullptr);
       bool failed = false;
       try { s.ziruDb->saveMeta("must_not_succeed", "1"); } catch (const std::exception&) { failed = true; }
