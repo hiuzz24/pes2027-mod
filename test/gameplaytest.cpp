@@ -295,6 +295,10 @@ int main() {
       active->put("division", 10)->put("cpu_level", "NORMAL");
       s.ziruDb->saveMeta("z27_active_match", active->toString());
       check(call(s, "CMD_GET_VSCOM_OPPONENT")->getString("cpu_level") == "HARDEST", "already-migrated saves maintain active division");
+      auto ratedState = s.z27State();
+      ratedState->getJSONObject("completed")->put(str(s.z27Active()->getLong("game_id")), true);
+      s.ziruDb->saveMeta("z27_division_state", ratedState->toString());
+      call(s, "CMD_GET_VSCOM_OPPONENT");
       auto ratedId = s.z27Active()->getLong("game_id");
       call(s, "CMD_START_GAME");
       result(s, ratedId, 1, 0);
