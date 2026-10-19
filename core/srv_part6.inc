@@ -139,6 +139,24 @@ ArrP ziruMlRosterForTeamV85(int32_t team) {
 
 void ziruMlSaveTeamStatV83(int32_t team, const std::string& k, int32_t v) { ziruDb->saveMeta(ziruMlTeamStatKeyV83(team, k), str(v)); }
 
+void ziruMlCpuFixtureScoresV86(int32_t homeTeam, int32_t awayTeam, int32_t fixture, int32_t& home, int32_t& away) {
+  JStr boundary = loadMeta("ziru_myleague_apk_score_start_fixture");
+  int first = boundary ? parseInt(*boundary) : ziruLeagueLoadInt("ziru_myleague_fixture", 1);
+  if (!boundary) ziruLeagueSaveInt("ziru_myleague_apk_score_start_fixture", first);
+  if (fixture < first) {
+    // Completed fixtures from an older IPA must still agree with the saved table.
+    home = ((homeTeam + awayTeam) + fixture) % 4;
+    away = (((homeTeam * 3) + (awayTeam * 2)) + fixture) % 4;
+    return;
+  }
+  // The supplied APK's CPU-fixture seed is stable across schedule reads and
+  // result settlement; use the same two scores in both paths.
+  int64_t seed = (int64_t)ziruLeagueLoadInt("ziru_myleague_season_counter", 1) * 31 +
+                 (int64_t)fixture * 17 + (int64_t)homeTeam * 7 + awayTeam;
+  home = (int32_t)(seed % 4);
+  away = (int32_t)((seed / 7) % 4);
+}
+
 void ziruMlSimulateCurrentFixtureV83(int32_t a, int32_t b) {
   try {
     int f = ziruLeagueLoadInt("ziru_myleague_fixture", 1);
@@ -154,8 +172,7 @@ void ziruMlSimulateCurrentFixtureV83(int32_t a, int32_t b) {
       int hs, as;
       if (h == team || w == team) { hs = a; as = b; }
       else {
-        hs = ((h + w) + f) % 4;
-        as = (((h * 3) + (w * 2)) + f) % 4;
+        ziruMlCpuFixtureScoresV86(h, w, f, hs, as);
         ziruMlGenerateCpuEventsV85(h, hs, f);
         ziruMlGenerateCpuEventsV85(w, as, f);
       }
