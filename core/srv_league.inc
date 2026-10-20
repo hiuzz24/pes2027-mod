@@ -220,6 +220,8 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
   ziruItemType = std::string("");
   ziruSkillCategory = std::string("");
   ziruTrainingIndex = -1;
+  ziruSelectedPositionId = 0;
+  ziruSelectedPosition.reset();
   ziruAbilityId = 0;
   ziruSkillCategoryCode = -1;
   ziruSkillItemEffect = 0;
@@ -245,6 +247,10 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
       }
     }
     ziruTrainingIndex = req->optInt("training_index", -1);
+    if (req->has("position_id")) ziruSelectedPositionId = req->optInt("position_id", 0);
+    else if (req->has("position_training_id")) ziruSelectedPositionId = req->optInt("position_training_id", 0);
+    if (req->has("additional_position")) ziruSelectedPosition = req->optString("additional_position", "");
+    else if (req->has("position")) ziruSelectedPosition = req->optString("position", "");
     if (req->has("ability_id")) ziruAbilityId = req->optInt("ability_id", 0);
     else if (req->has("ability_Id")) ziruAbilityId = req->optInt("ability_Id", 0);
     else if (req->has("skill_id")) ziruAbilityId = req->optInt("skill_id", 0);
@@ -270,12 +276,20 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
           else if (item->has("ability_Id")) ziruAbilityId = item->optInt("ability_Id", 0);
           else if (item->has("skill_id")) ziruAbilityId = item->optInt("skill_id", 0);
           else if (item->has("additional_skill_id")) ziruAbilityId = item->optInt("additional_skill_id", 0);
+          if (item->has("position_id")) ziruSelectedPositionId = item->optInt("position_id", 0);
+          else if (item->has("position_training_id")) ziruSelectedPositionId = item->optInt("position_training_id", 0);
+          if (item->has("additional_position")) ziruSelectedPosition = item->optString("additional_position", "");
+          else if (item->has("position")) ziruSelectedPosition = item->optString("position", "");
         }
         int i6 = it->optInt("present_num", 0);
         if (it->has("ability_id")) ziruAbilityId = it->optInt("ability_id", 0);
         else if (it->has("ability_Id")) ziruAbilityId = it->optInt("ability_Id", 0);
         else if (it->has("skill_id")) ziruAbilityId = it->optInt("skill_id", 0);
         else if (it->has("additional_skill_id")) ziruAbilityId = it->optInt("additional_skill_id", 0);
+        if (it->has("position_id")) ziruSelectedPositionId = it->optInt("position_id", 0);
+        else if (it->has("position_training_id")) ziruSelectedPositionId = it->optInt("position_training_id", 0);
+        if (it->has("additional_position")) ziruSelectedPosition = it->optString("additional_position", "");
+        else if (it->has("position")) ziruSelectedPosition = it->optString("position", "");
 
         if (ziruItemType && *ziruItemType == "LEVEL_TRAINING") {
           ziruLevelEffect += (int32_t)((uint32_t)i5 * (uint32_t)i6);
@@ -285,7 +299,9 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
     }
     zs::logi("OFFLINE_SERVER", "[ZIRU V15.7.2A ITEM] type=" + (ziruItemType ? *ziruItemType : "none") +
              " serial=" + str(ziruTargetSerial) + " player_id=" + str(ziruTargetPlayerId) +
-             " training_index=" + str(ziruTrainingIndex) + " ability=" + str(ziruAbilityId));
+             " training_index=" + str(ziruTrainingIndex) + " ability=" + str(ziruAbilityId) +
+             " position_id=" + str(ziruSelectedPositionId) +
+             " position=" + ziruSelectedPosition.value_or(""));
   } catch (const std::exception& e) {
     zs::loge("OFFLINE_SERVER", std::string("[ZIRU V15.7.2A ITEM] decode failed ") + e.what());
   }
@@ -650,3 +666,4 @@ Response handleZiruCareerplan(Request& r) {
     return serveJsonAsEncryptedMsgPack("responses/generic.json");
   }
 }
+
