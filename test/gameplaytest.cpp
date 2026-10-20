@@ -169,11 +169,42 @@ int main() {
       auto extra = detail->getJSONArray("additional_skill_id");
       check(extra->getInt(0) == 25 && extra->getInt(1) == 68,
           "stored internal skill IDs 25/68 are not remapped a second time");
+      check(detail->getJSONArray("initial_booster_id_list")->length() == 3,
+          "player-detail endpoint always exposes booster slots");
+      check(detail->optJSONArray("additional_position") != nullptr,
+          "player-detail endpoint always exposes additional positions");
       auto player = server.z27Player(newObj()->put("id", 1)->put("serial", 101));
       check(player->getJSONArray("additional_skill_id")->getInt(0) == 25,
           "match player retains the same internal learned skill identity");
       check(player->getJSONArray("parameters")->getInt(142) == 42,
           "skill synchronization preserves booster data");
+    }
+    {
+      OfflineServer server(cfg);
+      auto player = Object::parse(p->toString());
+      player->getJSONObject("gameplayer_id")->put("serial", 404);
+      player->getJSONArray("parameters")->put(0, 1);
+      server.ziruDb->savePlayer(404, 1, player->toString());
+      auto item = newObj()->put("gameplayer_id_list", newArr()->put(player->getJSONObject("gameplayer_id")))
+          ->put("training_index", 0)->put("position_id", 2)
+          ->put("item_list", newArr()->put(newObj()->put("present_num", 1)
+              ->put("item", newObj()->put("item_type", "POSITION_TRAINING_SELECT"))));
+      server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(item)));
+      auto response = newObj();
+      server.applyZiruPositionTrainingResponse(response);
+      check(response->getJSONObject("position_training_result")->getString("additional_position") == "CB",
+          "100-card position training applies the selected CB instead of a random position");
+      check(Object::parse(*server.loadPlayer(404))->getJSONArray("parameters")->getInt(10) == 2,
+          "selected position persists to the player save");
+      auto items = response->getJSONArray("item_list");
+      check(items->length() == 1 && items->getJSONObject(0)->getInt("inventory_num") == 999999,
+          "selected-position inventory remains available after use");
+      item->put("position_id", 0);
+      server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(item)));
+      response = newObj();
+      server.applyZiruPositionTrainingResponse(response);
+      check(response->getJSONObject("position_training_result")->getString("is_success") == "NO",
+          "a missing selected position fails instead of silently assigning a random position");
     }
     asset(root, "ZIRU_GET_VSCOM_OPPONENT.json", obj(R"({"squad_data":{"squad_gameplan":{"formation":[],"match_plan_settings":{}}},"user_info":[{}]})"));
     auto start = obj(R"({"squad_data_home":{"coach":{"coach_id":{"id":999,"serial":999}}},"commentary_info":{}})");
