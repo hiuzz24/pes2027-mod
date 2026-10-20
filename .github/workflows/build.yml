@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: build-dylib-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   linux-tests:
     runs-on: ubuntu-24.04
