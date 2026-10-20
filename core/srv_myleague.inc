@@ -68,6 +68,12 @@ Response handleZiruGetMyclubPlayerData(const std::optional<Bytes>& b) {
         out->put("experience_list", expl);
         out->put("skillcard_id_list", cards);
         out->put("booster_training_info", boost);
+        ArrP initialBoosters = gp->optJSONArray("initial_booster_id_list");
+        out->put("initial_booster_id_list", initialBoosters
+            ? Array::parse(initialBoosters->toString()) : newArr()->put(0)->put(0)->put(0));
+        ArrP additionalPositions = gp->optJSONArray("additional_position");
+        out->put("additional_position", additionalPositions
+            ? Array::parse(additionalPositions->toString()) : newArr());
         out->put("parameters", params);
         out->put("original_parameters", original ? Array::parse(original->toString()) : Array::parse(params->toString()));
         ArrP addSkills = gp->optJSONArray("additional_skill_id");
@@ -351,3 +357,4 @@ Response handleZiruMyLeagueResult() {
   ziruMyLeagueSetActive(1);
   return handleZiruLeagueStatic("responses/ZIRU_ML_GAME_RESULT.json");
 }
+
