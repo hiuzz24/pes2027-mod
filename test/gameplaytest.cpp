@@ -184,6 +184,29 @@ int main() {
     asset(root, "generic.json", obj(R"({"result":"NOERR"})"));
     {
       OfflineServer s(cfg);
+      auto d10 = Object::parse(p->toString());
+      auto d1 = Object::parse(p->toString());
+      auto base = d10->getJSONArray("parameters");
+      for (int i = 14; i <= 40; i++) base->put(i, 50);
+      d1->put("parameters", Array::parse(base->toString()));
+      d10->getJSONObject("level_info")->put("level_limit", 35);
+      d1->getJSONObject("level_info")->put("level_limit", 35);
+      s.z27ProgressOpponentPlayer(d10, 10);
+      s.z27ProgressOpponentPlayer(d1, 1);
+      check(d10->getJSONArray("parameters")->toString() == d1->getJSONArray("parameters")->toString(),
+          "all Divisions receive the same full opponent progression budget");
+      check(d10->getJSONObject("level_info")->getInt("level") == 35,
+          "opponent level is raised to the card limit");
+      auto goalkeeper = Object::parse(p->toString());
+      goalkeeper->getJSONArray("parameters")->put(0, 0);
+      goalkeeper->getJSONObject("level_info")->put("level_limit", 35);
+      int before = goalkeeper->getJSONArray("parameters")->getInt(29);
+      s.z27ProgressOpponentPlayer(goalkeeper, 10);
+      check(goalkeeper->getJSONArray("parameters")->getInt(29) > before,
+          "zero-based GK position receives goalkeeper progression");
+    }
+    {
+      OfflineServer s(cfg);
       auto a = call(s, "CMD_CREATE_MYCLUB_SQUAD", newObj()->put("name", "First tactic"))->getJSONObject("new_squad_data");
       auto b = call(s, "CMD_CREATE_MYCLUB_SQUAD", newObj()->put("name", "Second tactic"))->getJSONObject("new_squad_data");
       check(a->getInt("squad_id") != b->getInt("squad_id"), "creating two tactics must allocate distinct IDs");
@@ -290,11 +313,11 @@ int main() {
       s.ziruDb->saveMeta("z27_active_match", active->toString());
       check(s.z27State()->getInt("division") == 3 && s.z27State()->getInt("point") == 1350, "legacy rank and rating survive rule migration");
       auto selected = call(s, "CMD_GET_VSCOM_OPPONENT");
-      check(selected->getString("cpu_level") == "HARDEST" && s.z27Active()->getInt("division") == 3, "cached opponent follows preserved division");
+      check(selected->getString("cpu_level") == "LEGEND" && s.z27Active()->getInt("division") == 3, "cached opponent follows preserved division at maximum CPU level");
       active = s.z27Meta("z27_active_match");
       active->put("division", 10)->put("cpu_level", "NORMAL");
       s.ziruDb->saveMeta("z27_active_match", active->toString());
-      check(call(s, "CMD_GET_VSCOM_OPPONENT")->getString("cpu_level") == "HARDEST", "already-migrated saves maintain active division");
+      check(call(s, "CMD_GET_VSCOM_OPPONENT")->getString("cpu_level") == "LEGEND", "already-migrated saves maintain maximum CPU level");
       auto ratedState = s.z27State();
       ratedState->getJSONObject("completed")->put(str(s.z27Active()->getLong("game_id")), true);
       s.ziruDb->saveMeta("z27_division_state", ratedState->toString());
@@ -388,3 +411,4 @@ int main() {
     return 0;
   } catch (const std::exception& e) { std::cerr << "FAIL: " << e.what() << "\n"; return 1; }
 }
+
