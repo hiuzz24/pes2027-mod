@@ -46,7 +46,7 @@ jobs:
           PY
           mkdir -p /tmp/pk/gd /tmp/pk/docs && ./build/packtest /tmp/pk/pack.zip /tmp/pk/gd /tmp/pk/docs
   ios-dylib:
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - name: build ZiruOffline.dylib (arm64, iOS 15+)
