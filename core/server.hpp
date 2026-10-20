@@ -133,6 +133,8 @@ class OfflineServer {
   int32_t ziruSkillItemEffect = 0;
   int32_t ziruSkillItemGrade = 0;
   int64_t ziruSquadRqid = 0;
+  int32_t ziruSelectedPositionId = 0;
+  JStr ziruSelectedPosition;
   int64_t ziruTargetPlayerId = 0;
   int64_t ziruTargetSerial = 0;
   int32_t ziruTrainingIndex = 0;
@@ -168,3 +170,4 @@ class OfflineServer {
 };
 
 }  // namespace zsv
+
