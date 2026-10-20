@@ -715,10 +715,7 @@ ObjP z27State() {
 }
 
 std::string z27Difficulty(int d) {
-  if (d >= 9) return "NORMAL";
-  if (d >= 7) return "HARD";
-  if (d >= 5) return "VERYHARD";
-  if (d >= 3) return "HARDEST";
+  (void)d;
   return "LEGEND";
 }
 
@@ -770,6 +767,47 @@ ObjP z27Active() {
   return m;
 }
 
+void z27ProgressOpponentPlayer(const ObjP& player, int division) {
+  if (!player) return;
+  ArrP params = player->optJSONArray("parameters");
+  ObjP level = player->optJSONObject("level_info");
+  if (!params || params->length() < 145 || !level) return;
+  int limit = std::max(1, std::min(100, level->optInt("level_limit", 1)));
+  (void)division;
+  int budget = ziruProgressionBudget(limit);
+  const char* const groups[] = {"SHOOT", "PASS", "DRIBLE", "QUICKNESS", "STRENGTH",
+                                "AERIAL", "DEFENCE", "GK1", "GK2", "GK3"};
+  int weight[10] = {};
+  // The catalog stores positions as 0=GK ... 12=CF. Progression weights use
+  // the one-based position values used by the game.
+  int pos = params->optInt(0, 0) + 1;
+  if (pos == 1) { weight[7] = 4; weight[8] = 4; weight[9] = 4; weight[5] = 2; weight[4] = 1; }
+  else if (pos == 2) { weight[6] = 5; weight[5] = 3; weight[4] = 2; weight[1] = 1; weight[3] = 1; }
+  else if (pos == 3 || pos == 4) { weight[6] = 4; weight[4] = 3; weight[1] = 2; weight[3] = 2; weight[2] = 1; }
+  else if (pos == 5 || pos == 6) { weight[1] = 4; weight[6] = 3; weight[4] = 2; weight[2] = 2; weight[3] = 1; }
+  else if (pos == 7 || pos == 8 || pos == 9) { weight[1] = 3; weight[2] = 3; weight[3] = 3; weight[4] = 2; weight[0] = 1; }
+  else { weight[0] = 4; weight[2] = 3; weight[3] = 3; weight[4] = 2; weight[1] = 1; weight[5] = 1; }
+  int count[10] = {}, spent[10] = {};
+  while (budget > 0) {
+    int best = -1;
+    for (int i = 0; i < 10; i++) {
+      int nextCost = 1 + count[i] / 4;
+      if (!weight[i] || count[i] >= 12 || nextCost > budget) continue;
+      if (best < 0 || count[i] * weight[best] < count[best] * weight[i] ||
+          (count[i] * weight[best] == count[best] * weight[i] && weight[i] > weight[best])) best = i;
+    }
+    if (best < 0) break;
+    int cost = 1 + count[best] / 4;
+    budget -= cost;
+    spent[best] += cost;
+    count[best]++;
+  }
+  ObjP progression = newObj();
+  for (int i = 0; i < 10; i++) progression->put(groups[i], spent[i]);
+  z27ApplyProgressionPoints(params, progression, Array::parse(params->toString()));
+  level->put("level", limit)->put("exp_current_level", 0)->put("exp_to_next_level", 0);
+}
+
 ObjP z27Opponent(const ObjP& active) {
   ObjP tpl = loadZiruJsonAssetObject("responses/ZIRU_GET_VSCOM_OPPONENT.json");
   ObjP prof = active->getJSONObject("profile");
@@ -792,11 +830,12 @@ ObjP z27Opponent(const ObjP& active) {
     if (params && params->length() >= 70 && ps && ps->length() > 0) {
       int st1 = ps->optInt(0, 0);
       int pos = params->optInt(0, 0);
-      int st2 = ps->length() > 1 ? ps->optInt(1, 0) : z27GetDefensiveStyle(pos, st1);
+      int st2 = ps->length() > 1 ? ps->optInt(1, 0) : z27GetDefensiveStyle(pos + 1, st1);
       params->put(61, st1);
       params->put(62, st2);
-      z27ApplyComPlayStyles(params, pos, st1);
+      z27ApplyComPlayStyles(params, pos + 1, st1);
     }
+    z27ProgressOpponentPlayer(gp, active->optInt("division", 10));
     players->put(gp);
     refs->put(newObj()->put("gameplayer_id", z27Copy(gid))->put("uniform_number", i + 1));
   }
@@ -855,11 +894,7 @@ Response z27SelectOpponent() {
   try {
     ObjP req = z27Request();
     ObjP st = z27State();
-    std::string userCpu = req ? req->optString("cpu_level", "") : "";
     std::string effectiveCpu = z27Difficulty(st->getInt("division"));
-    if (!userCpu.empty() && (userCpu == "VERYEASY" || userCpu == "EASY" || userCpu == "NORMAL" || userCpu == "HARD" || userCpu == "VERYHARD" || userCpu == "HARDEST" || userCpu == "LEGEND")) {
-      effectiveCpu = userCpu;
-    }
     ObjP m = z27Meta("z27_active_match");
     if (m) {
       if (!st->getJSONObject("completed")->has(str(m->getLong("game_id")))) m->put("division", st->getInt("division"));
@@ -1445,3 +1480,4 @@ std::optional<Response> z27Route(const std::string& uri) {
   }
   return std::nullopt;
 }
+
