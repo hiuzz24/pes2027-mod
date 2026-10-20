@@ -205,6 +205,7 @@ int main() {
       server.applyZiruPositionTrainingResponse(response);
       check(response->getJSONObject("position_training_result")->getString("is_success") == "NO",
           "a missing selected position fails instead of silently assigning a random position");
+      server.ziruDb->deletePlayerState(404);
     }
     asset(root, "ZIRU_GET_VSCOM_OPPONENT.json", obj(R"({"squad_data":{"squad_gameplan":{"formation":[],"match_plan_settings":{}}},"user_info":[{}]})"));
     auto start = obj(R"({"squad_data_home":{"coach":{"coach_id":{"id":999,"serial":999}}},"commentary_info":{}})");
