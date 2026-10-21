@@ -195,11 +195,20 @@ int main() {
       server.applyZiruPositionTrainingResponse(response);
       check(response->getJSONObject("position_training_result")->getString("additional_position") == "CB",
           "root selection wins over generic GK metadata in the 100-card item");
+      check(response->getJSONArray("gameplayer_list")->getJSONObject(0)
+          ->getJSONArray("additional_position")->getString(0) == "CB",
+          "position training returns the updated player to the iOS screen");
       check(Object::parse(*server.loadPlayer(404))->getJSONArray("parameters")->getInt(10) == 2,
           "selected position persists to the player save");
       auto items = response->getJSONArray("item_list");
       check(items->length() == 1 && items->getJSONObject(0)->getInt("inventory_num") == 999999,
           "selected-position inventory remains available after use");
+      item->put("position_id", "CMF")->put("training_index", 1);
+      server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(item)));
+      response = newObj();
+      server.applyZiruPositionTrainingResponse(response);
+      check(response->getJSONObject("position_training_result")->getString("additional_position") == "CMF",
+          "APK-compatible string position selection never falls back to GK");
       item->put("position_id", 0);
       server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(item)));
       response = newObj();
@@ -207,6 +216,20 @@ int main() {
       check(response->getJSONObject("position_training_result")->getString("is_success") == "NO",
           "a missing selected position fails instead of silently assigning a random position");
       server.ziruDb->deletePlayerState(404);
+    }
+    {
+      OfflineServer server(cfg);
+      auto messi = Object::parse(p->toString());
+      messi->getJSONObject("gameplayer_id")->put("id", 89129161334103LL);
+      server.applyZiruMessiElite(messi, true, 70);
+      check(messi->getJSONArray("parameters")->getInt(18) == 99 &&
+          messi->getJSONObject("level_info")->getInt("customize_point") == 70,
+          "Messi's earlier elite profile and spare budget are restored");
+      messi->getJSONArray("parameters")->put(18, 94);
+      server.applyZiruMessiElite(messi, false, 58);
+      check(messi->getJSONArray("parameters")->getInt(18) == 94 &&
+          messi->getJSONObject("level_info")->getInt("customize_point") == 58,
+          "later manual Messi edits remain intact with the correct remaining points");
     }
     asset(root, "ZIRU_GET_VSCOM_OPPONENT.json", obj(R"({"squad_data":{"squad_gameplan":{"formation":[],"match_plan_settings":{}}},"user_info":[{}]})"));
     auto start = obj(R"({"squad_data_home":{"coach":{"coach_id":{"id":999,"serial":999}}},"commentary_info":{}})");
