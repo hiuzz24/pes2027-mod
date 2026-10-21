@@ -130,6 +130,16 @@ void applyZiruDynamicRecruit(const ObjP& jo) {
     std::string key = "ziru_remaining_" + str(j);
     std::string s = prefs.getString(key, "");
     ArrP remaining = s.empty() ? Array::parse(ids->toString()) : Array::parse(s);
+    // A pack can be corrected after a player has already drawn from it.
+    // Never draw removed card IDs from a remaining-list saved by an older IPA.
+    std::set<int64_t> allowed;
+    for (int n = 0; n < ids->length(); ++n) allowed.insert(ids->optLong(n, 0));
+    ArrP current = newArr();
+    for (int n = 0; n < remaining->length(); ++n) {
+      int64_t card = remaining->optLong(n, 0);
+      if (allowed.count(card)) current->put((long long)card);
+    }
+    remaining = current;
     int length = remaining->length();
     if (length <= 0) {
       remaining = Array::parse(ids->toString());
