@@ -323,9 +323,11 @@ int main() {
       auto p4 = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()->put("gameplayer_use_list", newArr()->put(useReal)))
           ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
       check(p4->getJSONObject("level_info")->getInt("customize_point") == 4, "four earned points spent");
-      check(p4->getJSONArray("parameters")->getInt(37) > 0, "kicking power auto calculated from progression points");
-      check(p4->getJSONArray("parameters")->getInt(34) > 0, "speed auto calculated from progression points");
-      check(p4->getJSONArray("parameters")->getInt(40) > 0, "stamina auto calculated from progression points");
+      int redistributedTotal = 0;
+      for (int idx = 14; idx <= 40; ++idx) if (idx != 33)
+        redistributedTotal += p4->getJSONArray("parameters")->getInt(idx);
+      check(redistributedTotal == 70,
+          "subsequent Auto allocation remains inside the finished card's native total");
       auto entryTest = call(s, "CMD_SET_MYCLUB_ENTRY_INFO", newObj()->put("base_team_id", 262143)->put("team_name", "Entry Team"));
       check(entryTest->getJSONArray("base_team")->getJSONObject(0)->getString("base_team_license") == "UNKNOWN", "entry info preserves unknown license instead of fabricating licensed assets");
     }
