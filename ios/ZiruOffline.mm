@@ -1195,7 +1195,10 @@ static void installBundledTableFixes(NSArray<NSString*>* directories) {
                 if ([hash isEqualToString:manifest[name][@"sha256"]]) {
                   continue;
                 }
-                if (![hash isEqualToString:manifest[name][@"original_sha256"]]) {
+                id knownHashes = manifest[name][@"known_sha256"];
+                BOOL knownPrevious = [hash isEqualToString:manifest[name][@"original_sha256"]]
+                    || ([knownHashes isKindOfClass:NSArray.class] && [knownHashes containsObject:hash]);
+                if (!knownPrevious) {
                   ZLog(@"[IOS_TABLE_FIX] Preserving unrecognized custom CPK %@", path);
                   continue;
                 }
@@ -1217,7 +1220,10 @@ static void installBundledTableFixes(NSArray<NSString*>* directories) {
             NSMutableString* hash = [NSMutableString string];
             for (unsigned char byte : digest) [hash appendFormat:@"%02x", byte];
             if ([hash isEqualToString:manifest[name][@"sha256"]]) continue;
-            if (![hash isEqualToString:manifest[name][@"original_sha256"]]) {
+            id knownHashes = manifest[name][@"known_sha256"];
+            BOOL knownPrevious = [hash isEqualToString:manifest[name][@"original_sha256"]]
+                || ([knownHashes isKindOfClass:NSArray.class] && [knownHashes containsObject:hash]);
+            if (!knownPrevious) {
               ZLog(@"[IOS_TABLE_FIX] Preserving unrecognized custom CPK %@", path);
               continue;
             }
@@ -2256,3 +2262,4 @@ __attribute__((constructor)) static void ziruInit() {
     startFpsMeter();
   }
 }
+
