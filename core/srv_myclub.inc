@@ -1,5 +1,19 @@
 // ---- MyClub: recruit / training / skills (OfflineServer.java ~105-800) ----
 
+// Native development points still available on the catalog card.  A card
+// bundled at its level limit has already earned its normal (limit - 1) * 2
+// points; it must never receive the old flat 60-point bonus.
+static int ziruUnspentNativePoints(const ObjP& player) {
+  ObjP li = player ? player->optJSONObject("level_info") : nullptr;
+  if (!li) return 0;
+  int limit = std::max(1, li->optInt("level_limit", 1));
+  int level = std::max(1, std::min(limit, li->optInt("level", 1)));
+  int total = std::max(0, limit - 1) * 2;
+  int unspent = std::max(0, li->optInt("customize_point", 0));
+  if (level == limit && unspent == 0) return total;
+  return std::min(total, unspent + (limit - level) * 2);
+}
+
 int32_t z28RandomBooster(bool isGk = false) {
   ArrP a = nn(loadZiruJsonAssetObject("responses/ZIRU_RANDOM_BOOSTERS.json"))->getJSONArray("ability_ids");
   static const std::set<int> gkBoosters = {22, 33, 44, 73, 79, 85, 271, 451, 495, 502};
@@ -444,7 +458,7 @@ inline const std::unordered_map<int32_t, std::pair<int, int>>& getZiruCanonicalW
     {34881, {3, 2}},
     {40240, {3, 3}},  // Neymar Jr
     {40323, {2, 1}},
-    {40352, {3, 2}},  // Luis Suárez
+    {40352, {3, 2}},  // Luis SuÃ¡rez
     {41126, {2, 2}},
     {44379, {3, 2}},  // Kevin De Bruyne
     {45097, {3, 3}},  // Son Heung-Min
@@ -454,7 +468,7 @@ inline const std::unordered_map<int32_t, std::pair<int, int>>& getZiruCanonicalW
     {104717, {1, 1}},
     {108959, {2, 1}},
     {109941, {1, 1}},
-    {110718, {2, 2}},  // Ousmane Dembélé
+    {110718, {2, 2}},  // Ousmane DembÃ©lÃ©
     {113960, {2, 2}},
     {114105, {2, 2}},
     {115881, {2, 0}},
@@ -499,7 +513,7 @@ void applyZiruWeakFootFix(const ObjP& jo) {
       p->put(45, 2); // Weak Foot Usage: Frequently
       return;
     }
-    if (base_id == 40352) { // Luis Suárez
+    if (base_id == 40352) { // Luis SuÃ¡rez
       p->put(33, 3); // Weak Foot Accuracy: Very High
       p->put(45, 2); // Weak Foot Usage: Frequently
       return;
