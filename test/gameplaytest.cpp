@@ -180,6 +180,20 @@ int main() {
           "skill synchronization preserves booster data");
     }
     {
+      Config stableCfg = cfg; stableCfg.dataDir = root + "/stable-auto";
+      std::filesystem::create_directories(stableCfg.dataDir);
+      OfflineServer server(stableCfg);
+      auto owned = Object::parse(p->toString());
+      owned->getJSONObject("gameplayer_id")->put("serial", 505);
+      owned->getJSONArray("parameters")->put(14, 91);
+      server.ziruDb->savePlayer(505, 1, owned->toString());
+      server.ziruDb->saveProgression(505, newObj()->put("SHOOT", 8)
+          ->put("_spent_total", 8)->toString());
+      auto loaded = server.refreshZiruGameplayerFromCanonical(owned);
+      check(loaded->getJSONArray("parameters")->getInt(14) == 91,
+          "loading a saved Auto plan does not rebuild or alter its attributes");
+    }
+    {
       OfflineServer server(cfg);
       auto player = Object::parse(p->toString());
       player->getJSONObject("gameplayer_id")->put("serial", 404);
@@ -230,6 +244,12 @@ int main() {
       check(messi->getJSONArray("parameters")->getInt(18) == 94 &&
           messi->getJSONObject("level_info")->getInt("customize_point") == 58,
           "later manual Messi edits remain intact with the correct remaining points");
+      server.ziruDb->saveProgression(555, newObj()->put("_spent_total", 163)->toString());
+      check(server.ziruMessiBudget(555) == 233,
+          "legacy Messi's 163 spent points remain valid alongside one fixed spare pool");
+      server.ziruDb->saveProgression(555, newObj()->put("_spent_total", 180)->toString());
+      check(server.ziruMessiBudget(555) == 233,
+          "editing Messi does not create another spare pool on each save");
     }
     asset(root, "ZIRU_GET_VSCOM_OPPONENT.json", obj(R"({"squad_data":{"squad_gameplan":{"formation":[],"match_plan_settings":{}}},"user_info":[{}]})"));
     auto start = obj(R"({"squad_data_home":{"coach":{"coach_id":{"id":999,"serial":999}}},"commentary_info":{}})");
