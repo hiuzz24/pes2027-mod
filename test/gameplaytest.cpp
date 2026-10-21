@@ -151,8 +151,23 @@ int main() {
     asset(root, "CmdLogin.json", newObj()->put("entry_info", entry));
     asset(root, "CmdCreateUser.json", obj(R"({"user_code":"offline","auth_code":"local","session_id":"create"})"));
     asset(root, "ZIRU_PLAYER_RECORDS.json", newObj()->put("1", newObj()->put("gameplayer", p)));
+    asset(root, "ZIRU_PACKS_CONFIG.json", obj(R"({"packs":[{"agent_id":91004,"player_ids":[1],"base_count":1}]})"));
     asset(root, "ZIRU_MATCH_TEAMS.json", obj(R"({"teams":{"108":{"base_team_id":108,"team_name":"Test","team_name_short":"TST","kits":[{"id":1,"shirt_rgb":[0,0,0]},{"id":2,"shirt_rgb":[255,255,255]}]}}})"));
     asset(root, "ZIRU_MATCH_PROFILES.json", obj(R"({"profiles":[{"profile_id":1,"player_ids":[1],"coordinates":[],"team_style":0,"base_team_id":108}]})"));
+    {
+      Config packCfg = cfg; packCfg.dataDir = root + "/pack-filter";
+      std::filesystem::create_directories(packCfg.dataDir);
+      OfflineServer server(packCfg);
+      server.sp("almanac_state").edit().putString("ziru_remaining_91004", "[2,1]").commit();
+      server.ziruLastAgentId = 91004;
+      server.ziruLastCount = 1;
+      auto response = newObj()->put("gameplayer_list", newArr()->put(
+          newObj()->put("gameplayer", Object::parse(p->toString()))));
+      server.applyZiruDynamicRecruit(response);
+      check(response->getJSONArray("gameplayer_list")->getJSONObject(0)
+              ->getJSONObject("gameplayer")->getJSONObject("gameplayer_id")->getLong("id") == 1,
+          "a corrected pack ignores removed cards in a previously saved draw pool");
+    }
     {
       Config skillCfg = cfg; skillCfg.dataDir = root + "/skill-display";
       std::filesystem::create_directories(skillCfg.dataDir);
