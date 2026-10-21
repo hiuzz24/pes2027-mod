@@ -62,12 +62,19 @@ Response handleZiruGetMyclubPlayerData(const std::optional<Bytes>& b) {
         e->put("level", lim + 1);
         e->put("experience", 0);
         expl->put(e);
+        // skillcard_id_list is the selector's available choices, not the
+        // player's already-known skills. The latter live in parameters and
+        // additional_skill_id on the owned player.
         ArrP cards = newArr();
-        for (int i = 0; i < 72; i++) {
+        ArrP learned = gp->optJSONArray("additional_skill_id");
+        for (int i = 0; i < 74; i++) {
           int pIdx = kZiruSkillParameters[i];
-          if (pIdx < params->length() && params->optInt(pIdx, 0) == 1) {
-            cards->put(i);
-          }
+          bool innate = isZiruSkillParameter(pIdx) && pIdx < params->length()
+              && params->optInt(pIdx, 0) == 1;
+          bool alreadyLearned = false;
+          if (learned) for (int slot = 0; slot < learned->length(); ++slot)
+            if (learned->optInt(slot, -1) == i) { alreadyLearned = true; break; }
+          if (!innate && !alreadyLearned) cards->put(i);
         }
         ObjP boost = Object::parse("{\"use_item_num_list_random\":[0,1],\"use_item_num_list_select\":[0,100]}");
         ObjP out = newObj();
@@ -83,12 +90,12 @@ Response handleZiruGetMyclubPlayerData(const std::optional<Bytes>& b) {
             ? Array::parse(additionalPositions->toString()) : newArr());
         out->put("parameters", params);
         out->put("original_parameters", original ? Array::parse(original->toString()) : Array::parse(params->toString()));
-        ArrP addSkills = gp->optJSONArray("additional_skill_id");
+        ArrP addSkills = learned;
         if (addSkills) out->put("additional_skill_id", addSkills);
         out->put("result", "NOERR");
         out->put("rqid", (long long)ziruPlayerDataRqid);
         out->put("msgid", "CMD_GET_MYCLUB_PLAYER_DATA");
-        logRequest("ZIRU_V11_PLAYERDATA", "[ZIRU_V11_PLAYERDATA_OK] id=" + str(j) + " level_limit=" + str(lim) + " base_skills=" + str(cards->length()) + " extra_skills=" + str(addSkills ? addSkills->length() : 0));
+        logRequest("ZIRU_V11_PLAYERDATA", "[ZIRU_V11_PLAYERDATA_OK] id=" + str(j) + " level_limit=" + str(lim) + " selectable_skills=" + str(cards->length()) + " extra_skills=" + str(addSkills ? addSkills->length() : 0));
         return serveObjectAsEncryptedMsgPack(out);
       }
     }
