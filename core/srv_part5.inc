@@ -365,7 +365,7 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
             if (pr && !pr->empty()) {
               ObjP progression = Object::parse(*pr);
               int spent = std::max(0, progression->optInt("_spent_total", 0));
-              if (spent > cp && lp && !lp->empty() && cur != jo &&
+              if (!isZiruMessiCard(id) && spent > cp && lp && !lp->empty() && cur != jo &&
                   baseParams && curParams && baseParams->length() >= 41 && curParams->length() >= 41) {
                 std::string key = "ziru_overbudget_backup_" + str(serial);
                 if (!loadMeta(key)) ziruDb->saveMeta(key, *lp);
@@ -377,16 +377,9 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
                 logRequest("ZIRU_AUTO_BUDGET", "Restored overbudget player serial=" + str(serial));
               }
               cp = std::max(0, cp - spent);
-              ObjP nativeLevel = base->optJSONObject("level_info");
-              if (nativeLevel && nativeLevel->optInt("level", 1) == nativeLevel->optInt("level_limit", 1) &&
-                  nativeLevel->optInt("customize_point", 0) == 0 && baseParams && curParams &&
-                  baseParams->length() >= 145 && curParams->length() >= 145 && spent > 0) {
-                ArrP balanced = Array::parse(baseParams->toString());
-                z27ApplyProgressionPoints(balanced, progression, baseParams);
-                z27BalanceMaxLevelProgression(balanced, baseParams);
-                for (int idx = 14; idx <= 40; ++idx)
-                  if (idx != 33) curParams->put(idx, balanced->optInt(idx, baseParams->optInt(idx, 0)));
-              }
+              // A saved plan contains the exact attributes accepted by the
+              // development screen. Rebuilding it from the catalog on every
+              // read made Auto results jump between views and erased edits.
             }
           }
           li->put("customize_point", cp);
@@ -429,6 +422,16 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
         }
         z27ApplyAppearanceAndClub(cur);
         applyZiruRonaldoMaxProgression(cur);
+        if (isZiruMessiCard(id)) {
+          int spent = 0;
+          JStr progression = serial > 0 ? loadProgression(serial) : JStr();
+          if (progression && !progression->empty())
+            spent = std::max(0, Object::parse(*progression)->optInt("_spent_total", 0));
+          std::string marker = "messi_elite_restored_" + str(serial);
+          bool restore = serial <= 0 || !loadMeta(marker);
+          applyZiruMessiElite(cur, restore, ziruMessiBudget(serial) - spent);
+          if (serial > 0 && restore) ziruDb->saveMeta(marker, "1");
+        }
         applyZiruWeakFootFix(cur);
         if (serial > 0) {
           ziruDb->savePlayer(serial, id, cur->toString());
@@ -570,7 +573,7 @@ Response serveLivedataAsset(const std::string& name) {
 }
 
 Response serveObjectAsEncryptedMsgPack(const ObjP& jo) {
-  // packValue(null) packs nil â€“ Java does not throw here
+  // packValue(null) packs nil – Java does not throw here
   Response r = newFixed(200, "application/x-msgpack", encodeClientResponse(jo ? Value(jo) : Value()));
   r.headers["Connection"] = "close";
   return r;
