@@ -157,6 +157,17 @@ static inline const char* z27PositionNameFromPlayerId(int id) {
 void applyZiruPositionTrainingResponse(const ObjP& jo) {
   try {
     if (!(ziruItemType && (*ziruItemType == "POSITION_TRAINING" || *ziruItemType == "POSITION_TRAINING_SELECT"))) return;
+    auto rejectUnknownSelection = [&]() {
+      ObjP res = jo->optJSONObject("position_training_result");
+      if (!res) { res = newObj(); jo->put("position_training_result", res); }
+      res->put("additional_position", "")->put("is_success", "NO");
+    };
+    if (*ziruItemType == "POSITION_TRAINING_SELECT" &&
+        ziruSelectedPositionId == 0 && (!ziruSelectedPosition || ziruSelectedPosition->empty())) {
+      logRequest("ZIRU_POSITION_V28", "[ZIRU_POSITION_SELECT_MISSING] serial=" + str(ziruTargetSerial));
+      rejectUnknownSelection();
+      return;
+    }
     int64_t j = ziruTargetSerial;
     if (j > 0) {
       JStr lp = loadPlayer(j);
@@ -458,7 +469,7 @@ inline const std::unordered_map<int32_t, std::pair<int, int>>& getZiruCanonicalW
     {34881, {3, 2}},
     {40240, {3, 3}},  // Neymar Jr
     {40323, {2, 1}},
-    {40352, {3, 2}},  // Luis SuÃ¡rez
+    {40352, {3, 2}},  // Luis Suárez
     {41126, {2, 2}},
     {44379, {3, 2}},  // Kevin De Bruyne
     {45097, {3, 3}},  // Son Heung-Min
@@ -468,7 +479,7 @@ inline const std::unordered_map<int32_t, std::pair<int, int>>& getZiruCanonicalW
     {104717, {1, 1}},
     {108959, {2, 1}},
     {109941, {1, 1}},
-    {110718, {2, 2}},  // Ousmane DembÃ©lÃ©
+    {110718, {2, 2}},  // Ousmane Dembélé
     {113960, {2, 2}},
     {114105, {2, 2}},
     {115881, {2, 0}},
@@ -513,7 +524,7 @@ void applyZiruWeakFootFix(const ObjP& jo) {
       p->put(45, 2); // Weak Foot Usage: Frequently
       return;
     }
-    if (base_id == 40352) { // Luis SuÃ¡rez
+    if (base_id == 40352) { // Luis Suárez
       p->put(33, 3); // Weak Foot Accuracy: Very High
       p->put(45, 2); // Weak Foot Usage: Frequently
       return;
