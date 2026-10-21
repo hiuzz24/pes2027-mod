@@ -788,7 +788,9 @@ void applyZiruSkillTrainingResponse(const ObjP& jo) {
     for (const auto& s_item : sp_) {
       int val = parseInt(s_item);
       bool builtIn = isZiruSkillId(val) && isZiruSkillParameter(kZiruSkillParameters[val]) && baseSkills && baseSkills->optInt(kZiruSkillParameters[val]) != 0;
-      if (isZiruSelectableSkillId(val) && !builtIn && !vcontains(al, val)) candidates.push_back(val);
+      if (isZiruSelectableSkillId(val)
+          && (*ziruItemType == "SKILL_TRAINING_SELECT" || isZiruRandomSpecialSkillId(val))
+          && !builtIn && !vcontains(al, val)) candidates.push_back(val);
     }
     int v = 70;
     if (*ziruItemType == "SKILL_TRAINING_SELECT") {
