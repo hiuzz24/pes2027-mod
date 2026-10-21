@@ -12,6 +12,12 @@ inline constexpr int kZiruSkillParameters[74] = {
   143,142
 };
 inline bool isZiruSkillId(int id) { return id >= 0 && id < 74; }
+// The APK 1.3.2 catalog reserves these IDs for unnamed or unverified skills.
+// Existing saves may contain them, but the training selector must not offer them.
+inline bool isZiruSelectableSkillId(int id) {
+  return isZiruSkillId(id) && id != 9 && id != 14 && id != 25
+      && id != 43 && id != 51 && id != 52 && id != 68;
+}
 // The last two skills have no parameter slot in Android's save layout:
 // 142..144 are booster IDs there. Keep these skills in the explicit ID lists.
 inline bool isZiruSkillParameter(int index) { return index >= 70 && index < 142; }
@@ -106,3 +112,4 @@ inline bool adaptIosPlayerData(zj::Value& value, bool outgoing) {
   return changed;
 }
 }
+
