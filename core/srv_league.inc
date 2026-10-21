@@ -249,7 +249,8 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
     }
     ziruTrainingIndex = req->optInt("training_index", -1);
     if (req->has("position_id")) {
-      ziruSelectedPosition = req->optString("position_id", "");
+      std::string requested = req->optString("position_id", "");
+      if (z27GetPositionIndexByName(requested) >= 1) ziruSelectedPosition = requested;
       ziruSelectedPositionId = req->optInt("position_id", 0);
     }
     else if (req->has("position_training_id")) ziruSelectedPositionId = req->optInt("position_training_id", 0);
