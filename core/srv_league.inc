@@ -1,8 +1,9 @@
 // ---- part 2 (OfflineServer.java ~800-1440): history item, leaderboards, request decoders, careerplan ----
 
-// Offline progression bonus, shared by login, recruitment, spending and reset.
-// Derive it from the level limit instead of adding to saved balances on every login.
-int ziruProgressionBudget(int limit) { return std::max(0, limit - 1) * 2 + 60; }
+// Native development budget: each earned level contributes two points.
+// Do not add a flat bonus; it overdevelops fixed POTW cards and makes Auto
+// allocate substantially more points than the original game permits.
+int ziruProgressionBudget(int limit) { return std::max(0, limit - 1) * 2; }
 
 ObjP buildZiruLeagueHistoryItem(int64_t gameId, int32_t s0, int32_t s1) {
   try {
@@ -276,20 +277,27 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
           else if (item->has("ability_Id")) ziruAbilityId = item->optInt("ability_Id", 0);
           else if (item->has("skill_id")) ziruAbilityId = item->optInt("skill_id", 0);
           else if (item->has("additional_skill_id")) ziruAbilityId = item->optInt("additional_skill_id", 0);
-          if (item->has("position_id")) ziruSelectedPositionId = item->optInt("position_id", 0);
-          else if (item->has("position_training_id")) ziruSelectedPositionId = item->optInt("position_training_id", 0);
-          if (item->has("additional_position")) ziruSelectedPosition = item->optString("additional_position", "");
-          else if (item->has("position")) ziruSelectedPosition = item->optString("position", "");
+          // The selected position is sent at the request root on iOS. Item
+          // metadata can also contain a generic position_id (usually GK=1),
+          // so it must never overwrite an explicit user selection.
+          if (ziruSelectedPositionId == 0 && (!ziruSelectedPosition || ziruSelectedPosition->empty())) {
+            if (item->has("position_id")) ziruSelectedPositionId = item->optInt("position_id", 0);
+            else if (item->has("position_training_id")) ziruSelectedPositionId = item->optInt("position_training_id", 0);
+            if (item->has("additional_position")) ziruSelectedPosition = item->optString("additional_position", "");
+            else if (item->has("position")) ziruSelectedPosition = item->optString("position", "");
+          }
         }
         int i6 = it->optInt("present_num", 0);
         if (it->has("ability_id")) ziruAbilityId = it->optInt("ability_id", 0);
         else if (it->has("ability_Id")) ziruAbilityId = it->optInt("ability_Id", 0);
         else if (it->has("skill_id")) ziruAbilityId = it->optInt("skill_id", 0);
         else if (it->has("additional_skill_id")) ziruAbilityId = it->optInt("additional_skill_id", 0);
-        if (it->has("position_id")) ziruSelectedPositionId = it->optInt("position_id", 0);
-        else if (it->has("position_training_id")) ziruSelectedPositionId = it->optInt("position_training_id", 0);
-        if (it->has("additional_position")) ziruSelectedPosition = it->optString("additional_position", "");
-        else if (it->has("position")) ziruSelectedPosition = it->optString("position", "");
+        if (ziruSelectedPositionId == 0 && (!ziruSelectedPosition || ziruSelectedPosition->empty())) {
+          if (it->has("position_id")) ziruSelectedPositionId = it->optInt("position_id", 0);
+          else if (it->has("position_training_id")) ziruSelectedPositionId = it->optInt("position_training_id", 0);
+          if (it->has("additional_position")) ziruSelectedPosition = it->optString("additional_position", "");
+          else if (it->has("position")) ziruSelectedPosition = it->optString("position", "");
+        }
 
         if (ziruItemType && *ziruItemType == "LEVEL_TRAINING") {
           ziruLevelEffect += (int32_t)((uint32_t)i5 * (uint32_t)i6);
@@ -302,6 +310,8 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
              " training_index=" + str(ziruTrainingIndex) + " ability=" + str(ziruAbilityId) +
              " position_id=" + str(ziruSelectedPositionId) +
              " position=" + ziruSelectedPosition.value_or(""));
+    if (ziruItemType && *ziruItemType == "POSITION_TRAINING_SELECT")
+      logRequest("ZIRU_POSITION_REQUEST", "[ZIRU_POSITION_REQUEST] " + req->toString());
   } catch (const std::exception& e) {
     zs::loge("OFFLINE_SERVER", std::string("[ZIRU V15.7.2A ITEM] decode failed ") + e.what());
   }
