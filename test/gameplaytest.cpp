@@ -422,6 +422,24 @@ int main() {
     asset(root, "generic.json", obj(R"({"result":"NOERR"})"));
     {
       OfflineServer s(cfg);
+      // The iOS career-plan reply must raise the same parameter slots as the
+      // efootxi 1.3.2 native allocation table, including the goalkeeper rows.
+      auto nativeBase = newArr();
+      for (int i = 0; i < 147; ++i) nativeBase->put(50);
+      auto nativePlan = newObj()->put("QUICKNESS", 1)->put("AERIAL", 1)
+          ->put("GK1", 1)->put("GK2", 1)->put("GK3", 1);
+      auto nativeResult = Array::parse(nativeBase->toString());
+      s.z27ApplyProgressionPoints(nativeResult, nativePlan, nativeBase);
+      for (int i = 14; i <= 40; ++i) {
+        const bool quick = i == 14 || i == 38 || i == 36;
+        const bool aerial = i == 23 || i == 39 || i == 35;
+        const bool gk1 = i == 16 || i == 39;
+        const bool gk2 = i == 30 || i == 32;
+        const bool gk3 = i == 29 || i == 31;
+        check(nativeResult->getInt(i) == 50 + (int)quick + (int)aerial +
+              (int)gk1 + (int)gk2 + (int)gk3,
+              "Auto progression uses native efootxi ability slots");
+      }
       auto d10 = Object::parse(p->toString());
       auto d1 = Object::parse(p->toString());
       auto base = d10->getJSONArray("parameters");
