@@ -626,6 +626,9 @@ Response handleZiruCareerplan(Request& r) {
               if (ziruCareerSpent == 0) {
                 res = buildZiruResetPlayer(ziruCareerPlayerId, ziruCareerSerial);
                 if (!res) fail = true;
+                if (!fail && isZiruMessiCard(ziruCareerPlayerId))
+                  ziruDb->saveMeta("messi_budget_" + str(ziruCareerSerial),
+                      str(ziruProgressionBudget(36)));
               } else {
                 ObjP li = jo->optJSONObject("level_info");
                 ObjP nativeWrapper = getZiruPlayerWrapper(Value((long long)ziruCareerPlayerId), false);
