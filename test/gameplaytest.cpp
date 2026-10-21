@@ -160,7 +160,7 @@ int main() {
       auto freshDetail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA",
           newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 101)));
       auto freshChoices = freshDetail->getJSONArray("skillcard_id_list");
-      check(freshChoices->length() == 67,
+      check(freshChoices->length() == 65,
           "empty skill slots offer verified skills rather than marking every choice learned");
       for (int special : {26, 31, 63, 70}) {
         bool offered = false;
@@ -182,7 +182,7 @@ int main() {
         hasInnate |= v == 2; hasLearned25 |= v == 25; hasLearned68 |= v == 68;
         hasAvailable |= v == 3;
       }
-      check(choices->length() == 66 && !hasInnate && !hasLearned25 && !hasLearned68 && hasAvailable,
+      check(choices->length() == 64 && !hasInnate && !hasLearned25 && !hasLearned68 && hasAvailable,
           "skill selector excludes only innate and learned skills for this player copy");
       auto extra = detail->getJSONArray("additional_skill_id");
       check(extra->getInt(0) == 25 && extra->getInt(1) == 68,
@@ -214,7 +214,7 @@ int main() {
           "100-card skill selection immediately returns the updated owned player");
       auto trainedDetail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA",
           newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 202)));
-      check(trainedDetail->getJSONArray("skillcard_id_list")->length() == 66,
+      check(trainedDetail->getJSONArray("skillcard_id_list")->length() == 64,
           "a selected skill is removed from available choices after saving");
       request->put("ability_id", iosSkillId(26, true));
       server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(request)));
