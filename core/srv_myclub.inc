@@ -783,12 +783,15 @@ void applyZiruSkillTrainingResponse(const ObjP& jo) {
     int v = 70;
     if (*ziruItemType == "SKILL_TRAINING_SELECT") {
       int chosen = ziruAbilityId;
-      if (chosen == 0 && ziruSkillItemEffect > 0) chosen = ziruSkillItemEffect;
-
       if (isZiruSelectableSkillId(chosen) && vcontains(candidates, chosen)) {
         v = chosen;
-      } else if (!candidates.empty()) {
-        v = candidates[0];
+      } else {
+        ObjP result = jo->optJSONObject("skill_training_result");
+        if (!result) { result = newObj(); jo->put("skill_training_result", result); }
+        result->put("is_success", "NO");
+        logRequest("ZIRU_SKILL_V23", "[ZIRU_SKILL_V23_INVALID] serial=" + str(j)
+            + " chosen=" + str(chosen));
+        return;
       }
     } else {
       if (!candidates.empty()) {
