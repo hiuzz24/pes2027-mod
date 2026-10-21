@@ -248,10 +248,15 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
       }
     }
     ziruTrainingIndex = req->optInt("training_index", -1);
-    if (req->has("position_id")) ziruSelectedPositionId = req->optInt("position_id", 0);
+    if (req->has("position_id")) {
+      ziruSelectedPosition = req->optString("position_id", "");
+      ziruSelectedPositionId = req->optInt("position_id", 0);
+    }
     else if (req->has("position_training_id")) ziruSelectedPositionId = req->optInt("position_training_id", 0);
-    if (req->has("additional_position")) ziruSelectedPosition = req->optString("additional_position", "");
-    else if (req->has("position")) ziruSelectedPosition = req->optString("position", "");
+    if ((!ziruSelectedPosition || ziruSelectedPosition->empty()) && req->has("additional_position"))
+      ziruSelectedPosition = req->optString("additional_position", "");
+    else if ((!ziruSelectedPosition || ziruSelectedPosition->empty()) && req->has("position"))
+      ziruSelectedPosition = req->optString("position", "");
     if (req->has("ability_id")) ziruAbilityId = req->optInt("ability_id", 0);
     else if (req->has("ability_Id")) ziruAbilityId = req->optInt("ability_Id", 0);
     else if (req->has("skill_id")) ziruAbilityId = req->optInt("skill_id", 0);
@@ -626,6 +631,7 @@ Response handleZiruCareerplan(Request& r) {
                 ObjP nativePlayer = nativeWrapper ? nativeWrapper->optJSONObject("gameplayer") : nullptr;
                 int budget = nativePlayer ? ziruUnspentNativePoints(nativePlayer) :
                     (li ? ziruProgressionBudget(li->optInt("level_limit", 1)) : 0);
+                if (isZiruMessiCard(ziruCareerPlayerId)) budget = ziruMessiBudget(ziruCareerSerial);
                 if (!li || ziruCareerSpent > budget) {
                   logRequest("ZIRU_CAREER_REJECT", "id=" + str(ziruCareerPlayerId) +
                       " spent=" + str(ziruCareerSpent) + " budget=" + str(budget));
@@ -645,14 +651,20 @@ Response handleZiruCareerplan(Request& r) {
                     if (!bp) bp = jo->optJSONArray("parameters");
                     if (bp) {
                       ArrP np = Array::parse(bp->toString());
-                      z27ApplyProgressionPoints(np, ziruCareerProgression, bp);
-                      if (finishedCatalogCard) z27BalanceMaxLevelProgression(np, bp);
+                      if (isZiruMessiCard(ziruCareerPlayerId)) {
+                        ArrP previous = jo->optJSONArray("parameters");
+                        if (previous && previous->length() >= 41)
+                          for (int idx = 14; idx <= 40; ++idx) np->put(idx, previous->optInt(idx, 0));
+                      } else {
+                        z27ApplyProgressionPoints(np, ziruCareerProgression, bp);
+                        if (finishedCatalogCard) z27BalanceMaxLevelProgression(np, bp);
+                      }
                       z28PreserveCareerTraining(jo, np);
                       jo->put("parameters", np);
                     }
                   } else {
                     ArrP bp = nativePlayer ? nativePlayer->optJSONArray("parameters") : nullptr;
-                    if (bp && bp->length() >= 145) {
+                    if (!isZiruMessiCard(ziruCareerPlayerId) && bp && bp->length() >= 145) {
                       ArrP calculated = Array::parse(bp->toString());
                       z27ApplyProgressionPoints(calculated, ziruCareerProgression, bp);
                       if (finishedCatalogCard) z27BalanceMaxLevelProgression(calculated, bp);
@@ -673,9 +685,15 @@ Response handleZiruCareerplan(Request& r) {
                 ObjP nativePlayer = nativeWrapper ? nativeWrapper->optJSONObject("gameplayer") : nullptr;
                 int budget = nativePlayer ? ziruUnspentNativePoints(nativePlayer) :
                     ziruProgressionBudget(li->optInt("level_limit", 1));
+                if (isZiruMessiCard(ziruCareerPlayerId)) budget = ziruMessiBudget(ziruCareerSerial);
                 int cp = budget - ziruCareerSpent;
                 if (cp < 0) cp = 0;
                 li->put("customize_point", cp);
+              }
+              if (isZiruMessiCard(ziruCareerPlayerId)) {
+                applyZiruMessiElite(res, ziruCareerSpent == 0,
+                    ziruMessiBudget(ziruCareerSerial) - ziruCareerSpent);
+                ziruDb->saveMeta("messi_elite_restored_" + str(ziruCareerSerial), "1");
               }
               ObjP prog = ziruCareerProgression;
               prog->put("_spent_total", ziruCareerSpent);
