@@ -628,6 +628,7 @@ void z27Restore(const ObjP& jo) {
               sv->put("play_style", z27ResolvePlayStyle(sv->getJSONObject("gameplayer_id")->getLong("id"), p));
             }
             z27ApplyAppearanceAndClub(sv);
+            ziruSyncActiveBooster(sv);
             ziruDb->savePlayer(serial, sv->getJSONObject("gameplayer_id")->getLong("id"), sv->toString());
             gl->put(i, sv);
           }
