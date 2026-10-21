@@ -296,13 +296,14 @@ int main() {
       auto spent = call(s, "CMD_USE_MYCLUB_CAREERPLAN", newObj()->put("gameplayer_use_list", newArr()->put(use)))
           ->getJSONArray("careerplan_result_list")->getJSONObject(0)->getJSONObject("gameplayer");
       check(spent->getJSONObject("level_info")->getInt("customize_point") == 2, "Auto cannot spend phantom bonus points");
-      check(spent->getJSONArray("parameters")->getInt(14) == 80, "upgraded stats returned");
+      check(spent->getJSONArray("parameters")->getInt(14) == 70,
+          "finished catalog card redistributes points without increasing its total ratings");
     }
     {
       OfflineServer s(cfg);
       check(s.z27State()->getInt("division") == 9, "rank survives process restart");
       auto p2 = call(s, "CMD_LOGIN")->getJSONObject("entry_info")->getJSONArray("gameplayer_list")->getJSONObject(0);
-      check(p2->getJSONObject("level_info")->getInt("customize_point") == 2 && p2->getJSONArray("parameters")->getInt(14) == 80, "training and remaining balance survive restart/login");
+      check(p2->getJSONObject("level_info")->getInt("customize_point") == 2 && p2->getJSONArray("parameters")->getInt(14) == 70, "training and remaining balance survive restart/login");
       call(s, "CMD_LOGIN"); check(s.refreshZiruGameplayerFromCanonical(p2)->getJSONObject("level_info")->getInt("customize_point") == 2, "earned points are not added repeatedly");
       auto id = call(s, "CMD_GET_VSCOM_OPPONENT")->getLong("game_id"); call(s, "CMD_START_GAME");
       result(s, id, 0, 0, true); check(s.z27State()->getInt("point") == 0, "give-up is not a draw point");
