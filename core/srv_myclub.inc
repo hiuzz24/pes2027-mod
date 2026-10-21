@@ -283,6 +283,10 @@ void applyZiruPositionTrainingResponse(const ObjP& jo) {
           if (!res) { res = newObj(); jo->put("position_training_result", res); }
           res->put("additional_position", chosen_pos);
           res->put("is_success", "YES");
+          // The iOS training screen refreshes its selected player from this
+          // reply. Without it, the client may show the default GK position.
+          jo->put("gameplayer_list", newArr()->put(p));
+          jo->put("achievement_notification", newArr());
 
           ArrP items = jo->optJSONArray("item_list");
           if (!items) { items = newArr(); jo->put("item_list", items); }
@@ -449,6 +453,54 @@ void applyZiruRonaldoMaxProgression(const ObjP& jo) {
     }
   } catch (const std::exception& e) {
     zs::loge("OFFLINE_SERVER", std::string("[ZIRU_RONALDO_UNLOCKED_ERR] ") + e.what());
+  }
+}
+
+static bool isZiruMessiCard(int64_t id) { return (id & 0xFFFFFF) == 7511; }
+
+int ziruMessiBudget(int64_t serial) {
+  const int standard = ziruProgressionBudget(36);
+  if (serial <= 0) return standard;
+  const std::string key = "messi_budget_" + str(serial);
+  JStr saved = loadMeta(key);
+  if (saved && !saved->empty()) {
+    try { return std::max(standard, parseInt(*saved)); } catch (...) {}
+  }
+  int priorSpent = 0;
+  JStr progression = loadProgression(serial);
+  if (progression && !progression->empty())
+    priorSpent = std::max(0, Object::parse(*progression)->optInt("_spent_total", 0));
+  // Existing Messi copies may have been developed under an older build.
+  // Preserve that allocation and grant one fixed spare pool for editing.
+  int budget = standard + std::min(1000, priorSpent);
+  ziruDb->saveMeta(key, str(budget));
+  return budget;
+}
+
+// Restore the earlier elite Messi profile once for each owned copy. Subsequent
+// manual development must remain editable and must not be overwritten on read.
+static void applyZiruMessiElite(const ObjP& player, bool restoreStats, int remainingPoints) {
+  if (!player) return;
+  ObjP gid = player->optJSONObject("gameplayer_id");
+  if (!gid || !isZiruMessiCard(gid->optLong("id", 0))) return;
+  ArrP params = player->optJSONArray("parameters");
+  if (restoreStats && params && params->length() >= 41) {
+    const std::pair<int, int> targets[] = {
+      {14, 98}, {17, 99}, {18, 99}, {19, 99}, {20, 97},
+      {21, 96}, {22, 93}, {27, 99}, {28, 99}, {34, 92},
+      {35, 94}, {36, 97}, {40, 92},
+    };
+    for (const auto& target : targets)
+      params->put(target.first, std::max(params->optInt(target.first, 0), target.second));
+  }
+  ObjP level = player->optJSONObject("level_info");
+  if (level) {
+    int limit = std::max(36, level->optInt("level_limit", 36));
+    level->put("level_limit", limit);
+    level->put("level", limit);
+    level->put("customize_point", std::max(0, remainingPoints));
+    level->put("exp_current_level", 0);
+    level->put("exp_to_next_level", 0);
   }
 }
 
