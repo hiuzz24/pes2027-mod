@@ -826,6 +826,7 @@ void applyZiruSkillTrainingResponse(const ObjP& jo) {
     if (!res) { res = newObj(); jo->put("skill_training_result", res); }
     res->put("additional_skill_id", v);
     res->put("is_success", "YES");
+    jo->put("gameplayer_list", newArr()->put(owned));
     ArrP items = jo->optJSONArray("item_list");
     if (items) {
       bool hasSel = false;
