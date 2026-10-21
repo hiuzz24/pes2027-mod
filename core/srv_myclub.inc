@@ -33,7 +33,7 @@ void applyZiruBoosterTrainingResponse(const ObjP& r13) {
     if (!ziruItemType) return;
     std::string r0 = *ziruItemType;
     int32_t r3 = ziruTrainingIndex;
-    if (!(r3 >= 0 && r3 < 3)) r3 = 1;
+    if (r3 < 1 || r3 > 2) r3 = 1;
     int64_t r4 = ziruTargetSerial;
     if (r4 <= 0) { logRequest("ZIRU_BOOSTER_V23", "[ZIRU_BOOSTER_V23_FAIL] missing target/ability"); return; }
     JStr r7 = loadPlayer(r4);
@@ -46,7 +46,24 @@ void applyZiruBoosterTrainingResponse(const ObjP& r13) {
     }
     r8 = ziruSyncActiveBooster(r8);
     ArrP r9 = nn(r8)->optJSONArray("parameters");
+    if (!r9 || r9->length() < 145) return;
     bool isGk = (r9 && r9->length() > 0 && r9->optInt(0, -1) == 0);
+
+    ArrP ib = r8->optJSONArray("initial_booster_id_list");
+    int innate = ib ? ib->optInt(r3, 0) : 0;
+    int active = r9->optInt(142 + r3, 0);
+    int firstActive = r9->optInt(143, 0);
+    if ((innate != 0 && innate != 136) || (active != 0 && active != 136)
+        || (r3 == 2 && (firstActive == 0 || firstActive == 136))) {
+      ObjP res = r13->optJSONObject("ability_training_result");
+      if (!res) { res = newObj(); r13->put("ability_training_result", res); }
+      res->put("is_success", "NO");
+      r13->put("gameplayer_list", newArr()->put(r8));
+      saveZiruPlayerToDb(r8);
+      logRequest("ZIRU_BOOSTER_V24", "[ZIRU_BOOSTER_V24_BLOCKED] serial=" + str(r4)
+          + " slot=" + str(r3) + " innate=" + str(innate) + " active=" + str(active));
+      return;
+    }
 
     int32_t r2;
     if (r0 == "ABILITY_TRAINING_RANDOM") {
@@ -57,17 +74,14 @@ void applyZiruBoosterTrainingResponse(const ObjP& r13) {
     } else {
       return;
     }
-    if (r9 && r9->length() >= 145) r9->put(142 + r3, r2);
-    ArrP ib = r8->optJSONArray("initial_booster_id_list");
-    if (!ib) { ib = newArr()->put(0)->put(0)->put(0); r8->put("initial_booster_id_list", ib); }
-    while (ib->length() < 3) ib->put(0);
-    ib->put(r3, r2);
+    r9->put(142 + r3, r2);
     saveZiruPlayerToDb(r8);
     ObjP res = r13->optJSONObject("ability_training_result");
     if (!res) { res = newObj(); r13->put("ability_training_result", res); }
     res->put("ability_Id", r2);
     res->put("ability_id", r2);
     res->put("is_success", "YES");
+    r13->put("gameplayer_list", newArr()->put(r8));
     logRequest("ZIRU_BOOSTER_V23", "[ZIRU_BOOSTER_V23] type=" + r0 + " serial=" + str(r4) + " slot=" + str(r3) + " ability_id=" + str(r2));
   } catch (const std::exception& e) {
     zs::loge("OFFLINE_SERVER", std::string("[ZIRU_BOOSTER_V23_ERR] ") + e.what());
