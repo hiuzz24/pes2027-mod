@@ -59,18 +59,18 @@ int main() {
       119,85,86,98,117,118,122,141,87,88,105,89,90,99,100,138,139,126,
       129,91,92,93,106,111,112,113,125,137,115,94,123,132,142,95,131,96,97,133
     };
-    auto skillIds = newArr(); for (int i = 0; i < 72; ++i) skillIds->put(i);
+    auto skillIds = newArr(); for (int i = 0; i < 74; ++i) skillIds->put(i);
     Value skillWire(newObj()->put("additional_skill_id", skillIds)->put("skillcard_id_list", skillIds)
         ->put("skill_training_result", newObj()->put("additional_skill_id", 67)));
     adaptIosPlayerData(skillWire, true);
-    for (int i = 0; i < 72; ++i) {
+    for (int i = 0; i < 74; ++i) {
       int target = skillWire.o->getJSONArray("additional_skill_id")->getInt(i);
       check(iosSkillLabels[target] == kZiruSkillParameters[i], "skill enum must refer to the same actual skill parameter");
       check(skillWire.o->getJSONArray("skillcard_id_list")->getInt(i) == target, "training list uses the same skill mapping");
     }
     check(skillWire.o->getJSONObject("skill_training_result")->getInt("additional_skill_id") == 69, "training result maps skill scalar");
     adaptIosPlayerData(skillWire, false);
-    for (int i = 0; i < 72; ++i) check(skillWire.o->getJSONArray("additional_skill_id")->getInt(i) == i, "all skill IDs roundtrip to stable save format");
+    for (int i = 0; i < 74; ++i) check(skillWire.o->getJSONArray("additional_skill_id")->getInt(i) == i, "all skill IDs roundtrip to stable save format");
     {
       auto params = newArr(); for (int i = 0; i < 149; ++i) params->put(0);
       params->put(71, 1); params->put(142, 1); params->put(143, 1);
@@ -175,9 +175,12 @@ int main() {
       auto freshDetail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA",
           newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 101)));
       auto freshChoices = freshDetail->getJSONArray("skillcard_id_list");
-      check(freshChoices->length() == 65,
+      check(freshChoices->length() == 67,
           "empty skill slots offer verified skills rather than marking every choice learned");
-      for (int special : {26, 31, 63, 70}) {
+      const int specialIds[] = {11, 12, 13, 16, 18, 24, 26, 30, 31, 36, 40,
+          41, 42, 53, 54, 62, 63, 64, 66, 67, 70, 73};
+      for (int special : specialIds) {
+        check(isZiruRandomSpecialSkillId(special), "the APK special skill belongs to the random draw pool");
         bool offered = false;
         for (int i = 0; i < freshChoices->length(); ++i) offered |= freshChoices->getInt(i) == special;
         check(offered, "APK 1.3.2 special skill is selectable");
@@ -197,7 +200,7 @@ int main() {
         hasInnate |= v == 2; hasLearned25 |= v == 25; hasLearned68 |= v == 68;
         hasAvailable |= v == 3;
       }
-      check(choices->length() == 64 && !hasInnate && !hasLearned25 && !hasLearned68 && hasAvailable,
+      check(choices->length() == 66 && !hasInnate && !hasLearned25 && !hasLearned68 && hasAvailable,
           "skill selector excludes only innate and learned skills for this player copy");
       auto extra = detail->getJSONArray("additional_skill_id");
       check(extra->getInt(0) == 25 && extra->getInt(1) == 68,
@@ -229,7 +232,7 @@ int main() {
           "100-card skill selection immediately returns the updated owned player");
       auto trainedDetail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA",
           newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 202)));
-      check(trainedDetail->getJSONArray("skillcard_id_list")->length() == 64,
+      check(trainedDetail->getJSONArray("skillcard_id_list")->length() == 66,
           "a selected skill is removed from available choices after saving");
       request->put("ability_id", iosSkillId(26, true));
       server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(request)));
@@ -242,7 +245,7 @@ int main() {
       auto untouched = server.z27Player(newObj()->put("id", 1)->put("serial", 101));
       check(untouched->getJSONArray("additional_skill_id")->getInt(0) == 25,
           "training one serial does not alter another copy of the same card");
-      for (int skillId : {31, 63, 70}) {
+      for (int skillId : specialIds) {
         auto copy = Object::parse(p->toString());
         int serial = 300 + skillId;
         copy->getJSONObject("gameplayer_id")->put("serial", serial);
@@ -253,9 +256,18 @@ int main() {
         auto result = newObj();
         server.applyZiruSkillTrainingResponse(result);
         auto savedCopy = server.z27Player(newObj()->put("id", 1)->put("serial", serial));
+        auto storedCopy = Object::parse(*server.loadPlayer(serial));
+        Value wire(Object::parse(savedCopy->toString()));
+        adaptIosPlayerData(wire, true);
+        int pIdx = kZiruSkillParameters[skillId];
+        int iosId = iosSkillId(skillId, true);
         check(result->getJSONObject("skill_training_result")->getString("is_success") == "YES"
             && savedCopy->getJSONArray("additional_skill_id")->getInt(0) == skillId
-            && savedCopy->getJSONArray("parameters")->getInt(kZiruSkillParameters[skillId]) == 1,
+            && storedCopy->getJSONArray("additional_skill_id")->getInt(0) == skillId
+            && (!isZiruSkillParameter(pIdx) || savedCopy->getJSONArray("parameters")->getInt(pIdx) == 1)
+            && wire.o->getJSONArray("additional_skill_id")->getInt(0) == iosId
+            && wire.o->getJSONArray("parameters")->getInt(iosSkillLabels[iosId]) == 1
+            && savedCopy->getJSONArray("parameters")->getInt(142) == 0,
             "each APK 1.3.2 special skill saves on its exact player copy");
       }
     }
@@ -582,33 +594,33 @@ int main() {
       auto owned = Object::parse(*s.loadPlayer(101));
       owned->getJSONObject("gameplayer_id")->put("serial", 303);
       auto params = owned->getJSONArray("parameters");
-      for (int id = 0; id < 72; ++id) params->put(kZiruSkillParameters[id], id == 0 ? 0 : 1);
-      owned->put("additional_skill_id", newArr());
+      for (int id = 0; id < 72; ++id) params->put(kZiruSkillParameters[id], id == 11 ? 0 : 1);
+      owned->put("additional_skill_id", newArr()->put(72)->put(73));
       s.ziruDb->savePlayer(303, 1, owned->toString());
       asset(root, "CMD_USE_MYCLUB_ITEM.json", obj(R"({"result":"NOERR"})"));
       auto req = newObj()->put("gameplayer_id_list", newArr()->put(owned->getJSONObject("gameplayer_id")))
-          ->put("training_index", 0)->put("item_list", newArr()->put(newObj()->put("present_num", 1)
+          ->put("training_index", 2)->put("item_list", newArr()->put(newObj()->put("present_num", 1)
           ->put("item", newObj()->put("item_type", "SKILL_TRAINING"))));
       auto itemResp = call(s, "CMD_USE_MYCLUB_ITEM", req);
       auto awarded = itemResp->getJSONObject("skill_training_result")->getInt("additional_skill_id");
-      check(awarded == 0, "training excludes all built-in skills; ID zero is a real skill");
+      check(awarded == 11, "random skill training uses only the unlearned special-skill pool");
       check(itemResp->getJSONArray("item_list")->length() > 0, "item_list replenished in CMD_USE_MYCLUB_ITEM");
     }
     {
       OfflineServer s(cfg);
       auto players = call(s, "CMD_LOGIN")->getJSONObject("entry_info")->getJSONArray("gameplayer_list");
-      bool retainedZero = false;
+      bool retainedSpecial = false;
       for (int i = 0; i < players->length(); ++i) {
         auto p = players->getJSONObject(i);
         if (p->getJSONObject("gameplayer_id")->getLong("serial") == 303) {
           auto skills = p->getJSONArray("additional_skill_id");
-          retainedZero = skills->length() == 1 && skills->getInt(0) == 0;
-          check(p->getJSONArray("parameters")->getInt(kZiruSkillParameters[0]) == 1, "skill zero parameter bit set in roster");
+          retainedSpecial = skills->length() == 3 && skills->getInt(2) == 11;
+          check(p->getJSONArray("parameters")->getInt(kZiruSkillParameters[11]) == 1, "random special skill parameter bit set in roster");
         }
       }
-      check(retainedZero, "valid skill zero survives save, process restart and login");
+      check(retainedSpecial, "random special skill survives save, process restart and login");
 
-      // Verify skill zero parameter bit and additional skill survive z27Restore via CMD_GET_MYCLUB_ENTRY_INFO
+      // Verify the random special skill survives z27Restore via CMD_GET_MYCLUB_ENTRY_INFO.
       auto entryResp = call(s, "CMD_GET_MYCLUB_ENTRY_INFO");
       auto entryPlayers = entryResp->getJSONObject("entry_info")->getJSONArray("gameplayer_list");
       bool entryHasSkill = false;
@@ -616,8 +628,8 @@ int main() {
         auto p = entryPlayers->getJSONObject(i);
         if (p->getJSONObject("gameplayer_id")->getLong("serial") == 303) {
           auto skills = p->optJSONArray("additional_skill_id");
-          if (skills && skills->length() == 1 && skills->getInt(0) == 0) entryHasSkill = true;
-          check(p->getJSONArray("parameters")->getInt(kZiruSkillParameters[0]) == 1, "skill zero parameter bit survives post-match entry info");
+          if (skills && skills->length() == 3 && skills->getInt(2) == 11) entryHasSkill = true;
+          check(p->getJSONArray("parameters")->getInt(kZiruSkillParameters[11]) == 1, "special skill parameter bit survives post-match entry info");
         }
       }
       check(entryHasSkill, "additional skill survives post-match entry info");
@@ -648,7 +660,7 @@ int main() {
       check(db.loadMeta("progress", progress) && progress == "retained" && prefs.getString("recruited_players", "") == "[1,2]", "DB and recruits survive exit without destructors");
     }
     std::filesystem::remove_all(root);
-    std::cout << "PASS: gameplay, booster layout, all 72 skill mappings/roundtrip/training/skill-zero restart, CREATE_USER resume, D1 migration, failed writes and abrupt-exit persistence\n";
+    std::cout << "PASS: gameplay, booster layout, all 74 skill mappings and 22 special-skill selection/training/match persistence, CREATE_USER resume, D1 migration, failed writes and abrupt-exit persistence\n";
     return 0;
   } catch (const std::exception& e) { std::cerr << "FAIL: " << e.what() << "\n"; return 1; }
 }
