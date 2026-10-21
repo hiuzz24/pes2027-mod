@@ -141,6 +141,7 @@ int main() {
     auto p = obj(R"({"gameplayer_id":{"id":1,"serial":101},"level_info":{"level":5,"level_limit":5,"customize_point":0}})");
     auto parameters = newArr(); for (int i = 0; i < 145; ++i) parameters->put(i == 14 ? 70 : 0);
     p->put("parameters", parameters);
+    p->put("initial_booster_id_list", newArr()->put(0)->put(0)->put(0));
     auto squad = newObj()->put("player_list", newArr()->put(newObj()->put("gameplayer_id", p->getJSONObject("gameplayer_id"))))
         ->put("coach", newArr()->put(coachRef(100, 1000)))->put("squad_gameplan", newObj());
     auto entry = newObj()->put("main_squad_id", 9)->put("gameplayer_list", newArr()->put(p))
@@ -192,6 +193,51 @@ int main() {
       auto loaded = server.refreshZiruGameplayerFromCanonical(owned);
       check(loaded->getJSONArray("parameters")->getInt(14) == 91,
           "loading a saved Auto plan does not rebuild or alter its attributes");
+    }
+    {
+      Config boosterCfg = cfg; boosterCfg.dataDir = root + "/booster-state";
+      std::filesystem::create_directories(boosterCfg.dataDir);
+      OfflineServer server(boosterCfg);
+      auto legacy = Object::parse(p->toString());
+      legacy->getJSONObject("gameplayer_id")->put("serial", 606);
+      legacy->getJSONArray("initial_booster_id_list")->put(1, 64);
+      legacy->getJSONArray("parameters")->put(143, 64);
+      server.ziruDb->savePlayer(606, 1, legacy->toString());
+      auto recovered = server.refreshZiruGameplayerFromCanonical(legacy);
+      check(recovered->getJSONArray("initial_booster_id_list")->getInt(1) == 0
+          && recovered->getJSONArray("parameters")->getInt(143) == 64,
+          "legacy crafted booster remains active while native slot eligibility is restored");
+      auto persisted = Object::parse(*server.loadPlayer(606));
+      check(persisted->getJSONArray("initial_booster_id_list")->getInt(1) == 0,
+          "legacy booster migration persists across restart");
+      auto detail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA",
+          newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 606)));
+      check(detail->getJSONArray("parameters")->getInt(143) == 64,
+          "owned booster is shown on the player-detail screen");
+
+      auto drawn = Object::parse(p->toString());
+      drawn->getJSONObject("gameplayer_id")->put("serial", 607);
+      server.ziruDb->savePlayer(607, 1, drawn->toString());
+      auto req = newObj()->put("gameplayer_id_list", newArr()->put(drawn->getJSONObject("gameplayer_id")))
+          ->put("training_index", 1)->put("ability_id", 65)
+          ->put("item_list", newArr()->put(newObj()->put("present_num", 100)
+              ->put("item", newObj()->put("item_type", "ABILITY_TRAINING_SELECT"))));
+      server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(req)));
+      auto response = newObj();
+      server.applyZiruBoosterTrainingResponse(response);
+      check(response->getJSONObject("ability_training_result")->getString("is_success") == "YES"
+          && response->getJSONArray("gameplayer_list")->getJSONObject(0)->getJSONArray("parameters")->getInt(143) == 65,
+          "newly drawn player gets the selected booster and updated UI state");
+      persisted = Object::parse(*server.loadPlayer(607));
+      check(persisted->getJSONArray("initial_booster_id_list")->getInt(1) == 0,
+          "selected booster never changes immutable native card metadata");
+      req->put("ability_id", 66);
+      server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(req)));
+      response = newObj();
+      server.applyZiruBoosterTrainingResponse(response);
+      check(response->getJSONObject("ability_training_result")->getString("is_success") == "NO"
+          && Object::parse(*server.loadPlayer(607))->getJSONArray("parameters")->getInt(143) == 65,
+          "a used booster slot cannot be overwritten by another 100-card selection");
     }
     {
       OfflineServer server(cfg);
