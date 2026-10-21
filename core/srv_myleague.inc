@@ -68,6 +68,7 @@ Response handleZiruGetMyclubPlayerData(const std::optional<Bytes>& b) {
         ArrP cards = newArr();
         ArrP learned = gp->optJSONArray("additional_skill_id");
         for (int i = 0; i < 74; i++) {
+          if (!isZiruSelectableSkillId(i)) continue;
           int pIdx = kZiruSkillParameters[i];
           bool innate = isZiruSkillParameter(pIdx) && pIdx < params->length()
               && params->optInt(pIdx, 0) == 1;
