@@ -343,17 +343,26 @@ ObjP ziruSyncActiveBooster(const ObjP& jo) {
       ArrP ib = base->optJSONArray("initial_booster_id_list");
       if (ib) {
         ArrP cur = jo->optJSONArray("initial_booster_id_list");
-        for (int i3 = 0; i3 < 3; i3++) {
-          int v, bv, pv;
-          if (cur && (v = cur->optInt(i3)) > 0 && v != (bv = ib->optInt(i3)) && ((pv = params->optInt(i3 + 142)) == bv || pv <= 0)) params->put(i3 + 142, v);
-          if (params->optInt(i3 + 142) <= 0 && ib->optInt(i3) > 0) params->put(i3 + 142, ib->optInt(i3));
-        }
         if (!cur) {
-          jo->put("initial_booster_id_list", Array::parse(ib->toString()));
-        } else {
-          for (int i3 = 0; i3 < 3; i3++) {
-            if (cur->optInt(i3) <= 0 && ib->optInt(i3) > 0) cur->put(i3, ib->optInt(i3));
+          cur = Array::parse(ib->toString());
+          jo->put("initial_booster_id_list", cur);
+        }
+        while (cur->length() < 3) cur->put(0);
+        for (int i3 = 0; i3 < 3; i3++) {
+          int native = ib->optInt(i3, 0);
+          int savedInitial = cur->optInt(i3, 0);
+          int active = params->optInt(i3 + 142, 0);
+          if ((native == 0 || native == 136) && savedInitial > 0 && savedInitial != native) {
+            // Older builds wrote a crafted booster into immutable innate
+            // metadata. Move it into the active slot before restoring the
+            // card's native eligibility to train that slot.
+            if (active == 0 || active == 136) params->put(i3 + 142, savedInitial);
+            cur->put(i3, native);
+          } else if (savedInitial <= 0 && native > 0) {
+            cur->put(i3, native);
           }
+          if (params->optInt(i3 + 142, 0) <= 0 && native > 0 && native != 136)
+            params->put(i3 + 142, native);
         }
       }
     }
@@ -389,3 +398,4 @@ void appendZiruMyLeagueRankRowV79(const ArrP& rows, int32_t team, int32_t /*user
   o->put("diff", gf - ga);
   rows->put(o);
 }
+
