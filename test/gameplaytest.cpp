@@ -159,8 +159,14 @@ int main() {
       OfflineServer server(skillCfg);
       auto freshDetail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA",
           newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 101)));
-      check(freshDetail->getJSONArray("skillcard_id_list")->length() == 74,
-          "empty skill slots offer all selectable skills rather than marking every choice learned");
+      auto freshChoices = freshDetail->getJSONArray("skillcard_id_list");
+      check(freshChoices->length() == 67,
+          "empty skill slots offer verified skills rather than marking every choice learned");
+      for (int special : {26, 31, 63, 70}) {
+        bool offered = false;
+        for (int i = 0; i < freshChoices->length(); ++i) offered |= freshChoices->getInt(i) == special;
+        check(offered, "APK 1.3.2 special skill is selectable");
+      }
       auto owned = Object::parse(p->toString());
       auto params = Array::parse(parameters->toString());
       params->put(14, 91); params->put(71, 1); params->put(142, 42);
@@ -176,7 +182,7 @@ int main() {
         hasInnate |= v == 2; hasLearned25 |= v == 25; hasLearned68 |= v == 68;
         hasAvailable |= v == 3;
       }
-      check(choices->length() == 71 && !hasInnate && !hasLearned25 && !hasLearned68 && hasAvailable,
+      check(choices->length() == 66 && !hasInnate && !hasLearned25 && !hasLearned68 && hasAvailable,
           "skill selector excludes only innate and learned skills for this player copy");
       auto extra = detail->getJSONArray("additional_skill_id");
       check(extra->getInt(0) == 25 && extra->getInt(1) == 68,
@@ -208,8 +214,19 @@ int main() {
           "100-card skill selection immediately returns the updated owned player");
       auto trainedDetail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA",
           newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 202)));
-      check(trainedDetail->getJSONArray("skillcard_id_list")->length() == 73,
+      check(trainedDetail->getJSONArray("skillcard_id_list")->length() == 66,
           "a selected skill is removed from available choices after saving");
+      request->put("ability_id", iosSkillId(26, true));
+      server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(request)));
+      server.applyZiruSkillTrainingResponse(newObj());
+      auto replaced = server.z27Player(newObj()->put("id", 1)->put("serial", 202));
+      check(replaced->getJSONArray("additional_skill_id")->getInt(0) == 26
+          && replaced->getJSONArray("parameters")->getInt(kZiruSkillParameters[26]) == 1
+          && replaced->getJSONArray("parameters")->getInt(kZiruSkillParameters[3]) == 0,
+          "replacing a per-copy skill removes its old match flag");
+      auto untouched = server.z27Player(newObj()->put("id", 1)->put("serial", 101));
+      check(untouched->getJSONArray("additional_skill_id")->getInt(0) == 25,
+          "training one serial does not alter another copy of the same card");
     }
     {
       Config stableCfg = cfg; stableCfg.dataDir = root + "/stable-auto";
@@ -269,6 +286,28 @@ int main() {
       check(response->getJSONObject("ability_training_result")->getString("is_success") == "NO"
           && Object::parse(*server.loadPlayer(607))->getJSONArray("parameters")->getInt(143) == 65,
           "a used booster slot cannot be overwritten by another 100-card selection");
+      auto precise = Object::parse(p->toString());
+      precise->getJSONObject("gameplayer_id")->put("serial", 608);
+      server.ziruDb->savePlayer(608, 1, precise->toString());
+      req->put("gameplayer_id_list", newArr()->put(precise->getJSONObject("gameplayer_id")))
+          ->put("ability_id", 239); // native catalog's Precise +6 full ID
+      server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(req)));
+      response = newObj();
+      server.applyZiruBoosterTrainingResponse(response);
+      check(response->getJSONObject("ability_training_result")->getString("is_success") == "YES"
+          && Object::parse(*server.loadPlayer(608))->getJSONArray("parameters")->getInt(143) == 239,
+          "Precise +6 saves its full booster ID on the exact player copy");
+      req->put("ability_id", 1023);
+      auto invalid = Object::parse(p->toString());
+      invalid->getJSONObject("gameplayer_id")->put("serial", 609);
+      server.ziruDb->savePlayer(609, 1, invalid->toString());
+      req->put("gameplayer_id_list", newArr()->put(invalid->getJSONObject("gameplayer_id")));
+      server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(req)));
+      response = newObj();
+      server.applyZiruBoosterTrainingResponse(response);
+      check(response->getJSONObject("ability_training_result")->getString("is_success") == "NO"
+          && Object::parse(*server.loadPlayer(609))->getJSONArray("parameters")->getInt(143) == 0,
+          "unknown booster IDs cannot corrupt an unused slot");
     }
     {
       OfflineServer server(cfg);
