@@ -433,10 +433,11 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
           if (serial > 0 && restore) ziruDb->saveMeta(marker, "1");
         }
         applyZiruWeakFootFix(cur);
+        ziruSyncActiveBooster(cur);
         if (serial > 0) {
           ziruDb->savePlayer(serial, id, cur->toString());
         }
-        return ziruSyncActiveBooster(cur);
+        return cur;
       }
     }
     return jo;
