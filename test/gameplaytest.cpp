@@ -157,6 +157,10 @@ int main() {
       Config skillCfg = cfg; skillCfg.dataDir = root + "/skill-display";
       std::filesystem::create_directories(skillCfg.dataDir);
       OfflineServer server(skillCfg);
+      auto freshDetail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA",
+          newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 101)));
+      check(freshDetail->getJSONArray("skillcard_id_list")->length() == 74,
+          "empty skill slots offer all selectable skills rather than marking every choice learned");
       auto owned = Object::parse(p->toString());
       auto params = Array::parse(parameters->toString());
       params->put(14, 91); params->put(71, 1); params->put(142, 42);
@@ -165,8 +169,15 @@ int main() {
       auto detail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA", newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 101)));
       check(detail->getJSONArray("parameters")->getInt(14) == 91,
           "player-detail endpoint uses owned progression rather than catalog stats");
-      check(detail->getJSONArray("skillcard_id_list")->length() > 0,
-          "owned intrinsic skills appear outside matches");
+      auto choices = detail->getJSONArray("skillcard_id_list");
+      bool hasInnate = false, hasLearned25 = false, hasLearned68 = false, hasAvailable = false;
+      for (int i = 0; i < choices->length(); ++i) {
+        int v = choices->getInt(i);
+        hasInnate |= v == 2; hasLearned25 |= v == 25; hasLearned68 |= v == 68;
+        hasAvailable |= v == 3;
+      }
+      check(choices->length() == 71 && !hasInnate && !hasLearned25 && !hasLearned68 && hasAvailable,
+          "skill selector excludes only innate and learned skills for this player copy");
       auto extra = detail->getJSONArray("additional_skill_id");
       check(extra->getInt(0) == 25 && extra->getInt(1) == 68,
           "stored internal skill IDs 25/68 are not remapped a second time");
@@ -179,6 +190,26 @@ int main() {
           "match player retains the same internal learned skill identity");
       check(player->getJSONArray("parameters")->getInt(142) == 42,
           "skill synchronization preserves booster data");
+
+      auto trainee = Object::parse(p->toString());
+      trainee->getJSONObject("gameplayer_id")->put("serial", 202);
+      trainee->put("additional_skill_id", newArr());
+      server.ziruDb->savePlayer(202, 1, trainee->toString());
+      auto request = newObj()->put("gameplayer_id_list", newArr()->put(trainee->getJSONObject("gameplayer_id")))
+          ->put("training_index", 0)->put("ability_id", 3)
+          ->put("item_list", newArr()->put(newObj()->put("present_num", 100)
+              ->put("item", newObj()->put("item_type", "SKILL_TRAINING_SELECT"))));
+      server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(request)));
+      auto trained = newObj();
+      server.applyZiruSkillTrainingResponse(trained);
+      check(trained->getJSONObject("skill_training_result")->getString("is_success") == "YES"
+          && trained->getJSONArray("gameplayer_list")->getJSONObject(0)
+              ->getJSONArray("additional_skill_id")->getInt(0) == 3,
+          "100-card skill selection immediately returns the updated owned player");
+      auto trainedDetail = call(server, "CMD_GET_MYCLUB_PLAYER_DATA",
+          newObj()->put("gameplayer_id", newObj()->put("id", 1)->put("serial", 202)));
+      check(trainedDetail->getJSONArray("skillcard_id_list")->length() == 73,
+          "a selected skill is removed from available choices after saving");
     }
     {
       Config stableCfg = cfg; stableCfg.dataDir = root + "/stable-auto";
