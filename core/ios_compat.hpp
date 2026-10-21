@@ -13,10 +13,23 @@ inline constexpr int kZiruSkillParameters[74] = {
 };
 inline bool isZiruSkillId(int id) { return id >= 0 && id < 74; }
 // The APK 1.3.2 catalog reserves these IDs for unnamed or unverified skills.
-// Existing saves may contain them, but the training selector must not offer them.
+// IDs 72/73 have no Android parameter bit, but are safely persisted in the
+// explicit additional_skill_id list. The iOS wire adapter supplies their
+// native skill bits (143/142) without touching Android booster slots.
 inline bool isZiruSelectableSkillId(int id) {
-  return id >= 0 && id < 72 && id != 9 && id != 14 && id != 25
+  return isZiruSkillId(id) && id != 9 && id != 14 && id != 25
       && id != 43 && id != 51 && id != 52 && id != 68;
+}
+// efootxi 1.3.2's verified special-skill draw pool. A manual 100-card
+// selection may choose any verified skill; random training draws only here.
+inline bool isZiruRandomSpecialSkillId(int id) {
+  switch (id) {
+    case 11: case 12: case 13: case 16: case 18: case 24: case 26:
+    case 30: case 31: case 36: case 40: case 41: case 42: case 53:
+    case 54: case 62: case 63: case 64: case 66: case 67: case 70:
+    case 73: return true;
+    default: return false;
+  }
 }
 // The last two skills have no parameter slot in Android's save layout:
 // 142..144 are booster IDs there. Keep these skills in the explicit ID lists.
