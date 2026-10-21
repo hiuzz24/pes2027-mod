@@ -15,7 +15,7 @@ inline bool isZiruSkillId(int id) { return id >= 0 && id < 74; }
 // The APK 1.3.2 catalog reserves these IDs for unnamed or unverified skills.
 // Existing saves may contain them, but the training selector must not offer them.
 inline bool isZiruSelectableSkillId(int id) {
-  return isZiruSkillId(id) && id != 9 && id != 14 && id != 25
+  return id >= 0 && id < 72 && id != 9 && id != 14 && id != 25
       && id != 43 && id != 51 && id != 52 && id != 68;
 }
 // The last two skills have no parameter slot in Android's save layout:
