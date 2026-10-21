@@ -52,7 +52,7 @@ int main() {
       check(coaches.a->getJSONObject(0)->getJSONArray("ability_id")->getInt(3) == 12, "coach repair is idempotent");
     }
     // Independent table extracted from iOS Player::GetDataLabel(SkillCard),
-    // VA 0x10578bc00. Compare semantic parameter labels for every source skill.
+    // VA 0x10578bc00. The native enum and APK enum have identical ordinals.
     const int iosSkillLabels[74] = {
       70,107,71,72,73,108,74,75,135,136,102,116,124,130,140,76,121,77,
       120,101,78,103,104,109,127,143,134,79,80,81,114,128,82,110,83,84,
@@ -65,28 +65,31 @@ int main() {
     adaptIosPlayerData(skillWire, true);
     for (int i = 0; i < 74; ++i) {
       int target = skillWire.o->getJSONArray("additional_skill_id")->getInt(i);
+      check(target == i, "skill ID is not shifted between APK and iOS");
       check(iosSkillLabels[target] == kZiruSkillParameters[i], "skill enum must refer to the same actual skill parameter");
       check(skillWire.o->getJSONArray("skillcard_id_list")->getInt(i) == target, "training list uses the same skill mapping");
     }
-    check(skillWire.o->getJSONObject("skill_training_result")->getInt("additional_skill_id") == 69, "training result maps skill scalar");
+    check(skillWire.o->getJSONObject("skill_training_result")->getInt("additional_skill_id") == 67, "training result keeps native skill ID");
     adaptIosPlayerData(skillWire, false);
     for (int i = 0; i < 74; ++i) check(skillWire.o->getJSONArray("additional_skill_id")->getInt(i) == i, "all skill IDs roundtrip to stable save format");
     {
       auto params = newArr(); for (int i = 0; i < 149; ++i) params->put(0);
-      params->put(71, 1); params->put(142, 1); params->put(143, 1);
+      params->put(71, 1); params->put(125, 1); params->put(142, 1); params->put(143, 1);
       Value owned(newObj()->put("gameplayer_id", newObj()->put("id", 4073))
           ->put("parameters", params)->put("additional_skill_id", newArr()));
       adaptIosPlayerData(owned, true);
       auto skills = owned.o->getJSONArray("skillcard_id_list");
-      check(skills->length() == 1 && skills->getInt(0) == 2,
-          "owned-player menu receives Double Touch in the native skill enum");
+      check(skills->length() == 2 && skills->getInt(0) == 2 && skills->getInt(1) == 62,
+          "owned-player menu receives Double Touch and Long Reach Tackle by native ID");
       auto wire = owned.o->getJSONArray("parameters");
       check(wire->getInt(142) == 0 && wire->getInt(143) == 0,
           "booster ID one must not invent two extra skill flags");
       check(wire->getInt(144) == 1 && wire->getInt(145) == 1,
           "booster IDs survive skill-list reconstruction");
-      check(!isZiruSkillParameter(kZiruSkillParameters[72]) && !isZiruSkillParameter(kZiruSkillParameters[73]),
-          "new skills are represented by explicit IDs, never by overwriting save boosters");
+      check(kZiruSkillParameters[72] == 97 && kZiruSkillParameters[73] == 133,
+          "the last two skill IDs retain their real match-parameter flags");
+      check(!isZiruSkillParameter(kZiruSkillParameters[25]) && !isZiruSkillParameter(kZiruSkillParameters[68]),
+          "reserved skill IDs never read saved booster values");
     }
     char temp[] = "/tmp/pes-gameplay-XXXXXX";
     check(mkdtemp(temp), "temporary directory");
