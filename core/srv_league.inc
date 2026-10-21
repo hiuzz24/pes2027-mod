@@ -311,6 +311,13 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
       }
       if (ziruAbilityId == 0 && ziruSkillItemEffect > 0) ziruAbilityId = ziruSkillItemEffect;
     }
+    // The iOS picker sends its wire skill enum. The catalog and saved
+    // additional_skill_id values use the internal enum, which skips two iOS
+    // placeholders. Booster ability IDs are a separate numeric space.
+    if (ziruItemType && (*ziruItemType == "SKILL_TRAINING"
+        || *ziruItemType == "SKILL_TRAINING_CATEGORY"
+        || *ziruItemType == "SKILL_TRAINING_SELECT") && ziruAbilityId > 0)
+      ziruAbilityId = iosSkillId(ziruAbilityId, false);
     zs::logi("OFFLINE_SERVER", "[ZIRU V15.7.2A ITEM] type=" + (ziruItemType ? *ziruItemType : "none") +
              " serial=" + str(ziruTargetSerial) + " player_id=" + str(ziruTargetPlayerId) +
              " training_index=" + str(ziruTrainingIndex) + " ability=" + str(ziruAbilityId) +
