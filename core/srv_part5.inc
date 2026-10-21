@@ -228,6 +228,46 @@ void z27ApplyProgressionPoints(const ArrP& params, const ObjP& prog, const ArrP&
   }
 }
 
+// Catalog cards that already arrive at their level limit contain finished
+// ratings. Auto may redistribute their earned points, but must not increase
+// the card's total attributes again.
+void z27BalanceMaxLevelProgression(const ArrP& params, const ArrP& baseParams) {
+  if (!params || !baseParams || params->length() < 41 || baseParams->length() < 41) return;
+  int gained = 0;
+  bool trained[41] = {};
+  for (int idx = 14; idx <= 40; ++idx) {
+    if (idx == 33) continue;
+    int base = baseParams->optInt(idx, 0);
+    int value = std::min(params->optInt(idx, base), std::min(105, base + 5));
+    value = std::max(base, value);
+    trained[idx] = value > base;
+    params->put(idx, value);
+    gained += value - base;
+  }
+  while (gained > 0) {
+    bool changed = false;
+    for (int idx = 14; idx <= 40 && gained > 0; ++idx) {
+      if (idx == 33) continue;
+      int base = baseParams->optInt(idx, 0);
+      int value = params->optInt(idx, base);
+      if (!trained[idx] && value > std::max(40, base - 3)) {
+        params->put(idx, value - 1);
+        --gained;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  for (int idx = 14; idx <= 40 && gained > 0; ++idx) {
+    if (idx == 33) continue;
+    int base = baseParams->optInt(idx, 0);
+    int value = params->optInt(idx, base);
+    int drop = std::min(gained, std::max(0, value - base));
+    params->put(idx, value - drop);
+    gained -= drop;
+  }
+}
+
 ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
   if (!jo) return jo;
   try {
@@ -319,12 +359,34 @@ ObjP refreshZiruGameplayerFromCanonical(const ObjP& jo) {
           li->put("exp_total", 0);
           li->put("exp_current_level", 0);
           li->put("exp_to_next_level", 0);
-          int cp = ziruProgressionBudget(lim);
+          int cp = ziruUnspentNativePoints(base);
           if (serial > 0) {
             JStr pr = loadProgression(serial);
             if (pr && !pr->empty()) {
-              cp -= Object::parse(*pr)->optInt("_spent_total", 0);
-              if (cp < 0) cp = 0;
+              ObjP progression = Object::parse(*pr);
+              int spent = std::max(0, progression->optInt("_spent_total", 0));
+              if (spent > cp && lp && !lp->empty() && cur != jo &&
+                  baseParams && curParams && baseParams->length() >= 41 && curParams->length() >= 41) {
+                std::string key = "ziru_overbudget_backup_" + str(serial);
+                if (!loadMeta(key)) ziruDb->saveMeta(key, *lp);
+                if (!loadMeta(key + "_progression")) ziruDb->saveMeta(key + "_progression", *pr);
+                for (int idx = 14; idx <= 40; ++idx)
+                  curParams->put(idx, baseParams->optInt(idx, 0));
+                ziruDb->saveProgression(serial, newObj()->put("_spent_total", 0)->toString());
+                spent = 0;
+                logRequest("ZIRU_AUTO_BUDGET", "Restored overbudget player serial=" + str(serial));
+              }
+              cp = std::max(0, cp - spent);
+              ObjP nativeLevel = base->optJSONObject("level_info");
+              if (nativeLevel && nativeLevel->optInt("level", 1) == nativeLevel->optInt("level_limit", 1) &&
+                  nativeLevel->optInt("customize_point", 0) == 0 && baseParams && curParams &&
+                  baseParams->length() >= 145 && curParams->length() >= 145 && spent > 0) {
+                ArrP balanced = Array::parse(baseParams->toString());
+                z27ApplyProgressionPoints(balanced, progression, baseParams);
+                z27BalanceMaxLevelProgression(balanced, baseParams);
+                for (int idx = 14; idx <= 40; ++idx)
+                  if (idx != 33) curParams->put(idx, balanced->optInt(idx, baseParams->optInt(idx, 0)));
+              }
             }
           }
           li->put("customize_point", cp);
@@ -508,7 +570,7 @@ Response serveLivedataAsset(const std::string& name) {
 }
 
 Response serveObjectAsEncryptedMsgPack(const ObjP& jo) {
-  // packValue(null) packs nil – Java does not throw here
+  // packValue(null) packs nil â€“ Java does not throw here
   Response r = newFixed(200, "application/x-msgpack", encodeClientResponse(jo ? Value(jo) : Value()));
   r.headers["Connection"] = "close";
   return r;
@@ -674,3 +736,4 @@ int32_t ziruLeaguePromotionThreshold(int i) {
 int32_t ziruLeagueRoundLimit(int i) { return (i == 10 || i == 9) ? 8 : 10; }
 
 void ziruLeagueSaveInt(const std::string& k, int32_t v) { ziruDb->saveMeta(k, str(v)); }
+
