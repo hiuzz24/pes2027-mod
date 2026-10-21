@@ -188,20 +188,22 @@ void z27ApplyProgressionPoints(const ArrP& params, const ObjP& prog, const ArrP&
   deltas[18] += dribbleCount;
   deltas[19] += dribbleCount;
 
-  // QUICKNESS -> Offensive Awareness (14), Acceleration (35), Balance (36)
+  // Match efootxi 1.3.2's native AUTO_GROUP_INDICES. The old mapping sent
+  // Quickness into Speed and Aerial into Jump/Physical Contact incorrectly.
+  // QUICKNESS -> Offensive Awareness (14), Acceleration (38), Balance (36)
   deltas[14] += quickCount;
-  deltas[35] += quickCount;
+  deltas[38] += quickCount;
   deltas[36] += quickCount;
 
-  // STRENGTH -> Speed (34), Kicking Power (37), Stamina (40)
-  deltas[34] += strengthCount;
+  // STRENGTH -> Kicking Power (37), Speed (34), Stamina (40)
   deltas[37] += strengthCount;
+  deltas[34] += strengthCount;
   deltas[40] += strengthCount;
 
-  // AERIAL -> Heading (23), Jump (38), Physical Contact (39)
+  // AERIAL -> Heading (23), Physical Contact (39), Jump (35)
   deltas[23] += aerialCount;
-  deltas[38] += aerialCount;
   deltas[39] += aerialCount;
+  deltas[35] += aerialCount;
 
   // DEFENCE -> Defensive Awareness (15), Tackling (24), Aggression (25), Defensive Engagement (26)
   deltas[15] += defCount;
@@ -209,21 +211,21 @@ void z27ApplyProgressionPoints(const ArrP& params, const ObjP& prog, const ArrP&
   deltas[25] += defCount;
   deltas[26] += defCount;
 
-  // GK1 -> GK Awareness (29), Jump (38)
-  deltas[29] += gk1Count;
-  deltas[38] += gk1Count;
+  // GK1 -> GK Awareness (16), Physical Contact (39)
+  deltas[16] += gk1Count;
+  deltas[39] += gk1Count;
 
-  // GK2 -> GK Clearing (31), GK Reach (39)
-  deltas[31] += gk2Count;
-  deltas[39] += gk2Count;
+  // GK2 -> GK Catching (30), GK Reflexes (32)
+  deltas[30] += gk2Count;
+  deltas[32] += gk2Count;
 
-  // GK3 -> GK Catching (30), GK Reflexes (32)
-  deltas[30] += gk3Count;
-  deltas[32] += gk3Count;
+  // GK3 -> GK Clearing (29), GK Reach (31)
+  deltas[29] += gk3Count;
+  deltas[31] += gk3Count;
 
   for (int idx = 14; idx <= 40; idx++) {
     int baseVal = src->optInt(idx, 0);
-    int newVal = std::min(105, baseVal + deltas[idx]);
+    int newVal = std::min(127, baseVal + deltas[idx]);
     params->put(idx, newVal);
   }
 }
