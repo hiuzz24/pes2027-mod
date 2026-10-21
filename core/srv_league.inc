@@ -314,6 +314,16 @@ void decodeZiruMyclubItemRequest(const Bytes& b) {
       logRequest("ZIRU_POSITION_REQUEST", "[ZIRU_POSITION_REQUEST] " + req->toString());
   } catch (const std::exception& e) {
     zs::loge("OFFLINE_SERVER", std::string("[ZIRU V15.7.2A ITEM] decode failed ") + e.what());
+    Bytes mp;
+    if (inflateRequest(b, mp)) {
+      const std::string raw((const char*)mp.data(), mp.size());
+      if (raw.find("POSITION_TRAINING_SELECT") != std::string::npos)
+        ziruItemType = std::string("POSITION_TRAINING_SELECT");
+      // Needed to identify the actual iOS select-position payload. The old
+      // decoder silently discarded it and the UI displayed GK by default.
+      logRequest("ZIRU_POSITION_DECODE", "[ZIRU_POSITION_DECODE] bytes=" +
+          str((int64_t)mp.size()) + " hex=" + zc::hex(mp.data(), std::min<size_t>(mp.size(), 2048)));
+    }
   }
 }
 
