@@ -2,20 +2,18 @@
 #include "jvalue.hpp"
 
 namespace zsv {
-// Android 11.0.1 Player::GetDataLabel(SkillCard) table, verified in libUE4.so
-// at file offset 0xcc12ec. Match by parameter label, not by enum ordinal.
+// The Android and iOS Player::GetDataLabel(SkillCard) tables have the same
+// ordinal-to-parameter mapping for IDs 0..73 (iOS VA 0x10578bc00). The last
+// two iOS parameter indices 142/143 are reserved before the booster slots.
 inline constexpr int kZiruSkillParameters[74] = {
   70,107,71,72,73,108,74,75,135,136,102,116,124,130,140,76,121,77,
-  120,101,78,103,104,109,127,134,79,80,81,114,128,82,110,83,84,119,
-  85,86,98,117,118,122,141,87,88,105,89,90,99,100,138,139,126,129,
-  91,92,93,106,111,112,113,125,137,115,94,123,132,95,131,96,97,133,
-  143,142
+  120,101,78,103,104,109,127,143,134,79,80,81,114,128,82,110,83,84,
+  119,85,86,98,117,118,122,141,87,88,105,89,90,99,100,138,139,126,
+  129,91,92,93,106,111,112,113,125,137,115,94,123,132,142,95,131,96,
+  97,133
 };
 inline bool isZiruSkillId(int id) { return id >= 0 && id < 74; }
 // The APK 1.3.2 catalog reserves these IDs for unnamed or unverified skills.
-// IDs 72/73 have no Android parameter bit, but are safely persisted in the
-// explicit additional_skill_id list. The iOS wire adapter supplies their
-// native skill bits (143/142) without touching Android booster slots.
 inline bool isZiruSelectableSkillId(int id) {
   return isZiruSkillId(id) && id != 9 && id != 14 && id != 25
       && id != 43 && id != 51 && id != 52 && id != 68;
@@ -31,31 +29,21 @@ inline bool isZiruRandomSpecialSkillId(int id) {
     default: return false;
   }
 }
-// The last two skills have no parameter slot in Android's save layout:
-// 142..144 are booster IDs there. Keep these skills in the explicit ID lists.
+// 142/143 overlap Android's booster slots; never set them as saved skill bits.
 inline bool isZiruSkillParameter(int index) { return index >= 70 && index < 142; }
 inline zj::ArrP ziruSkillList(const zj::ArrP& params) {
   auto result = zj::Array::make();
   if (!params) return result;
-  for (int id = 0; id < 72; ++id) {
+  for (int id = 0; id < 74; ++id) {
     int index = kZiruSkillParameters[id];
-    if (index < params->length() && params->optInt(index, 0) == 1) result->put(id);
+    if (isZiruSkillParameter(index) && index < params->length()
+        && params->optInt(index, 0) == 1) result->put(id);
   }
   return result;
 }
 inline int iosSkillId(int id, bool outgoing) {
-  if (outgoing) {
-    if (id == 72) return 25;
-    if (id == 73) return 68;
-    if (!isZiruSkillId(id)) return std::max(0, std::min(73, id));
-    return id + (id >= 25) + (id >= 67);
-  }
-  // iOS wire format -> internal format
-  if (id < 0) return 0;
-  if (id == 25) return 72;
-  if (id == 68) return 73;
-  if (id >= 74) return 71;
-  return id - (id > 25) - (id > 68);
+  (void)outgoing;
+  return id;
 }
 // iOS 11.1.1 PlayerBase::SetData accepts 147 parameters. Its indices 142/143
 // are skill bits; booster IDs are 144..146 (10 bits each). Ziru 11.0.1 uses
@@ -102,16 +90,7 @@ inline bool adaptIosPlayerData(zj::Value& value, bool outgoing) {
           auto dst = zj::Array::make();
           for (int i = 0; i < 142; ++i) dst->put(src->get(i));
           if (outgoing) {
-            int b142 = 0, b143 = 0;
-            auto ask = value.o->optJSONArray("additional_skill_id");
-            if (ask) {
-              for (int si = 0; si < ask->length(); ++si) {
-                int sv = ask->optInt(si, -1);
-                if (sv == 73 || sv == 68) b142 = 1;
-                if (sv == 72 || sv == 25) b143 = 1;
-              }
-            }
-            dst->put(b142)->put(b143);
+            dst->put(0)->put(0);
           }
           for (int i = 0; i < 3; ++i) dst->put(src->get((outgoing ? 142 : 144) + i));
           value.o->put(key, dst);
