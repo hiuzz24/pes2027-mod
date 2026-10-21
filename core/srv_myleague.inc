@@ -34,6 +34,13 @@ Response handleZiruGetMyclubPlayerData(const std::optional<Bytes>& b) {
       }
       if (gp) {
         gp = z27Copy(gp);
+        std::string beforeBoosterSync = gp->toString();
+        ziruSyncActiveBooster(gp);
+        if (j2 > 0 && gp->toString() != beforeBoosterSync) {
+          ObjP gid = gp->optJSONObject("gameplayer_id");
+          if (gid && gid->optLong("serial", 0) == j2)
+            ziruDb->savePlayer(j2, gid->optLong("id", 0), gp->toString());
+        }
         params = gp->optJSONArray("parameters");
       }
       if (gp && params) {
