@@ -985,6 +985,14 @@ ObjP z27Player(const ObjP& gid) {
   }
   z27ApplyAppearanceAndClub(p);
   applyZiruRonaldoMaxProgression(p);
+  if (isZiruMessiCard(pid)) {
+    int spent = 0;
+    JStr progression = serial > 0 ? loadProgression(serial) : JStr();
+    if (progression && !progression->empty())
+      spent = std::max(0, Object::parse(*progression)->optInt("_spent_total", 0));
+    applyZiruMessiElite(p, serial <= 0 || !loadMeta("messi_elite_restored_" + str(serial)),
+        ziruMessiBudget(serial) - spent);
+  }
   applyZiruWeakFootFix(p);
   p = ziruSyncActiveBooster(p);
 
