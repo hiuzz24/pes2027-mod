@@ -227,6 +227,22 @@ int main() {
       auto untouched = server.z27Player(newObj()->put("id", 1)->put("serial", 101));
       check(untouched->getJSONArray("additional_skill_id")->getInt(0) == 25,
           "training one serial does not alter another copy of the same card");
+      for (int skillId : {31, 63, 70}) {
+        auto copy = Object::parse(p->toString());
+        int serial = 300 + skillId;
+        copy->getJSONObject("gameplayer_id")->put("serial", serial);
+        server.ziruDb->savePlayer(serial, 1, copy->toString());
+        request->put("gameplayer_id_list", newArr()->put(copy->getJSONObject("gameplayer_id")))
+            ->put("ability_id", iosSkillId(skillId, true));
+        server.decodeZiruMyclubItemRequest(zc::encodeRequest(Value(request)));
+        auto result = newObj();
+        server.applyZiruSkillTrainingResponse(result);
+        auto savedCopy = server.z27Player(newObj()->put("id", 1)->put("serial", serial));
+        check(result->getJSONObject("skill_training_result")->getString("is_success") == "YES"
+            && savedCopy->getJSONArray("additional_skill_id")->getInt(0) == skillId
+            && savedCopy->getJSONArray("parameters")->getInt(kZiruSkillParameters[skillId]) == 1,
+            "each APK 1.3.2 special skill saves on its exact player copy");
+      }
     }
     {
       Config stableCfg = cfg; stableCfg.dataDir = root + "/stable-auto";
