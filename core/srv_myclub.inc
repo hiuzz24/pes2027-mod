@@ -28,6 +28,23 @@ int32_t z28RandomBooster(bool isGk = false) {
   return isGk ? 22 : 12; // fallback GK Saving vs Outfield Agility
 }
 
+// Exact booster IDs exported from efootxi 1.3.2's native catalog. IDs encode
+// both the booster type and the +N strength; a type ID alone is not a booster.
+// Hex nibble n represents IDs 4n..4n+3. This excludes invalid 10-bit values.
+static bool ziruIsCatalogBooster(int id) {
+  static const std::string bits =
+      "0000000000000000000000000000000000000000000000000000000000000000"
+      "000000000000000000000000000000000000000000000000000000004000001f"
+      "cfffffff7ffffff8fffafffffbfffffffffdffffffffdfffefd7e00008048ee4"
+      "6c0080000001efefffffffffffffc0fffffffffffffffffffffffffffffffffe";
+  if (id <= 0 || id > 1023) return false;
+  int index = static_cast<int>(bits.size()) - 1 - id / 4;
+  if (index < 0) return false;
+  char digit = bits[index];
+  int nibble = digit >= '0' && digit <= '9' ? digit - '0' : digit - 'a' + 10;
+  return (nibble & (1 << (id % 4))) != 0;
+}
+
 void applyZiruBoosterTrainingResponse(const ObjP& r13) {
   try {
     if (!ziruItemType) return;
@@ -70,7 +87,13 @@ void applyZiruBoosterTrainingResponse(const ObjP& r13) {
       r2 = z28RandomBooster(isGk);
     } else if (r0 == "ABILITY_TRAINING_SELECT") {
       r2 = ziruAbilityId;
-      if (r2 <= 0) { logRequest("ZIRU_BOOSTER_V23", "[ZIRU_BOOSTER_V23_FAIL] missing target/ability"); return; }
+      if (!ziruIsCatalogBooster(r2)) {
+        ObjP res = r13->optJSONObject("ability_training_result");
+        if (!res) { res = newObj(); r13->put("ability_training_result", res); }
+        res->put("is_success", "NO");
+        logRequest("ZIRU_BOOSTER_V25", "[ZIRU_BOOSTER_V25_INVALID] id=" + str(r2));
+        return;
+      }
     } else {
       return;
     }
@@ -739,15 +762,15 @@ void applyZiruSkillTrainingResponse(const ObjP& jo) {
         }
       }
     }
-    std::string pool = "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71";
+    std::string pool = "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73";
     if (*ziruItemType == "SKILL_TRAINING_CATEGORY") {
       std::string c = resolveZiruSkillCategory();
       if (c == "UNKNOWN") c = "OTHER";
-      if (contains(c, "SHOOT") || contains(c, "FINISH")) pool = "15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30";
-      else if (contains(c, "PASS")) pool = "31,32,33,34,35,36,37,38,39,40,41,42,43,46";
+      if (contains(c, "SHOOT") || contains(c, "FINISH")) pool = "15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31";
+      else if (contains(c, "PASS")) pool = "32,33,34,35,36,37,38,39,40,41,42,43,44";
       else if (contains(c, "DRIB")) pool = "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14";
-      else if (contains(c, "DEF")) pool = "55,56,57,58,59,60,61,62,63,64,65,66";
-      else pool = "44,45,47,48,49,50,51,52,53,54,67,68,69,70,71";
+      else if (contains(c, "DEF")) pool = "56,57,58,59,60,61,62,63,64,65,66,67,68";
+      else pool = "45,46,47,48,49,50,51,52,53,54,55,69,70,71,72,73";
     }
     std::vector<std::string> sp_ = split(pool, ',');
     std::vector<int> candidates;
@@ -755,15 +778,14 @@ void applyZiruSkillTrainingResponse(const ObjP& jo) {
     for (const auto& s_item : sp_) {
       int val = parseInt(s_item);
       bool builtIn = isZiruSkillId(val) && isZiruSkillParameter(kZiruSkillParameters[val]) && baseSkills && baseSkills->optInt(kZiruSkillParameters[val]) != 0;
-      if (isZiruSkillId(val) && !builtIn && !vcontains(al, val)) candidates.push_back(val);
+      if (isZiruSelectableSkillId(val) && !builtIn && !vcontains(al, val)) candidates.push_back(val);
     }
     int v = 70;
     if (*ziruItemType == "SKILL_TRAINING_SELECT") {
       int chosen = ziruAbilityId;
       if (chosen == 0 && ziruSkillItemEffect > 0) chosen = ziruSkillItemEffect;
 
-      if (!isZiruSkillId(chosen)) chosen = ziruAbilityId;
-      if (isZiruSkillId(chosen)) {
+      if (isZiruSelectableSkillId(chosen) && vcontains(candidates, chosen)) {
         v = chosen;
       } else if (!candidates.empty()) {
         v = candidates[0];
@@ -774,6 +796,7 @@ void applyZiruSkillTrainingResponse(const ObjP& jo) {
       } else throw IllegalState("No eligible additional skill remains");
     }
 
+    std::vector<int32_t> previousSkills = al;
     int slot = ziruTrainingIndex;
     if (slot >= 0 && slot < (int)al.size()) {
       int old = al[slot];
@@ -799,6 +822,18 @@ void applyZiruSkillTrainingResponse(const ObjP& jo) {
     ArrP origParams = owned->optJSONArray("original_parameters");
     ArrP params = owned->optJSONArray("parameters");
     if (params && params->length() >= 142) {
+      // A learned skill belongs to this serial, not to every copy of the card.
+      // Replacing a slot must also remove the old match flag unless the same
+      // skill was innate on the catalog/original card.
+      for (int oldSkill : previousSkills) {
+        if (!isZiruSkillId(oldSkill) || vcontains(al, oldSkill)) continue;
+        int pIdx = kZiruSkillParameters[oldSkill];
+        if (isZiruSkillParameter(pIdx) && pIdx < params->length()
+            && !(baseParams && baseParams->optInt(pIdx, 0) == 1)
+            && !(origParams && origParams->optInt(pIdx, 0) == 1)) {
+          params->put(pIdx, 0);
+        }
+      }
       if (baseParams && baseParams->length() >= 142) {
         for (int idx = 70; idx <= 141; ++idx) {
           if (baseParams->optInt(idx, 0) == 1) params->put(idx, 1);
