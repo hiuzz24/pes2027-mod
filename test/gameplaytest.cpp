@@ -453,9 +453,9 @@ int main() {
           "all Divisions receive the same full opponent progression budget");
       check(d10->getJSONObject("level_info")->getInt("level") == 35,
           "opponent level is raised to the card limit");
-      check(d10->getJSONArray("parameters")->getInt(20) >= 56 &&
-            p->getJSONArray("parameters")->getInt(20) != d10->getJSONArray("parameters")->getInt(20),
-          "match-only opponent boost preserves the original player record");
+      check(d10->getJSONArray("parameters")->getInt(33) == 50 &&
+            p->getJSONArray("parameters")->getInt(33) != d10->getJSONArray("parameters")->getInt(33),
+          "opponent progression does not add a flat bonus to unrelated attributes");
       auto goalkeeper = Object::parse(p->toString());
       goalkeeper->getJSONArray("parameters")->put(0, 0);
       goalkeeper->getJSONObject("level_info")->put("level_limit", 35);
