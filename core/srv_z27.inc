@@ -806,6 +806,13 @@ void z27ProgressOpponentPlayer(const ObjP& player, int division) {
   ObjP progression = newObj();
   for (int i = 0; i < 10; i++) progression->put(groups[i], spent[i]);
   z27ApplyProgressionPoints(params, progression, Array::parse(params->toString()));
+  // Keep each two-booster card intact. Only the copied Division AI player
+  // receives this bonus; owned cards and Auto development do not change.
+  // Fixed level-one POTW cards retain their native attributes.
+  if (limit > 1) {
+    for (int idx = 14; idx <= 40; idx++)
+      params->put(idx, std::min(127, params->optInt(idx, 0) + 6));
+  }
   level->put("level", limit)->put("exp_current_level", 0)->put("exp_to_next_level", 0);
 }
 
