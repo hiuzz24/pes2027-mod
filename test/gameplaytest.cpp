@@ -589,8 +589,14 @@ int main() {
       active->put("division", 10)->put("cpu_level", "NORMAL");
       s.ziruDb->saveMeta("z27_active_match", active->toString());
       check(s.z27State()->getInt("division") == 3 && s.z27State()->getInt("point") == 1350, "legacy rank and rating survive rule migration");
+      auto pendingId = active->getLong("game_id");
+      asset(root, "ZIRU_MATCH_PROFILES.json", obj(R"({"profiles":[{"profile_id":1,"player_ids":[1],"coordinates":[],"team_style":1,"base_team_id":108}]})"));
       auto selected = call(s, "CMD_GET_VSCOM_OPPONENT");
       check(selected->getString("cpu_level") == "LEGEND" && s.z27Active()->getInt("division") == 3, "cached opponent follows preserved division at maximum CPU level");
+      check(s.z27Active()->getLong("game_id") == pendingId &&
+            s.z27Active()->getJSONObject("profile")->getInt("team_style") == 1 &&
+            s.z27State()->getInt("point") == 1350,
+            "new catalog refreshes the pending opponent without erasing its game ID or Division rating");
       active = s.z27Meta("z27_active_match");
       active->put("division", 10)->put("cpu_level", "NORMAL");
       s.ziruDb->saveMeta("z27_active_match", active->toString());
