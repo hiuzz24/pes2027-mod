@@ -921,6 +921,24 @@ Response z27SelectOpponent() {
           break;
         }
       }
+      // A pending opponent is persisted across app upgrades. Keep its game ID
+      // and match history, but replace its roster with the current catalog
+      // entry so card updates actually reach the pre-match screen.
+      ObjP cachedProfile = m->optJSONObject("profile");
+      if (cachedProfile) {
+        ArrP latestProfiles = nn(loadZiruJsonAssetObject("responses/ZIRU_MATCH_PROFILES.json"))->getJSONArray("profiles");
+        for (int i = 0; i < latestProfiles->length(); ++i) {
+          ObjP latest = latestProfiles->getJSONObject(i);
+          if (latest->getInt("profile_id") != cachedProfile->getInt("profile_id") ||
+              latest->getInt("base_team_id") != cachedProfile->getInt("base_team_id")) continue;
+          if (latest->toString() != cachedProfile->toString()) {
+            m->put("profile", z27Copy(latest));
+            logRequest("ZIRU_PROFILE_REFRESH", "game=" + str(m->getLong("game_id")) +
+                " profile=" + str(latest->getInt("profile_id")));
+          }
+          break;
+        }
+      }
       z27PutMeta("z27_active_match", m->toString());
     }
     if (!m || st->getJSONObject("completed")->has(str(m->getLong("game_id")))) {
