@@ -1,7 +1,7 @@
 name: build-dylib
 on:
   push:
-    branches: [main, feature/online-1.1, codex/ios-kit-jersey-controls-20261019, codex/apk-division-port-20261019]
+    branches: [main, feature/online-1.1, codex/ios-kit-jersey-controls-20261019, codex/apk-division-port-20261019, codex/bundled-ios-data-20261024]
     tags: ['v*']
   workflow_dispatch:
 permissions:
