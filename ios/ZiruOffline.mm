@@ -1343,6 +1343,33 @@ static BOOL checkDirectFolderData(NSString** why) {
     ZLog(@"[PAK_EXTRA] linked %lu files from ziru/pak_extra", (unsigned long)[fm contentsOfDirectoryAtPath:bundleExtra error:nil].count);
   }
 
+  // Self-contained iOS data pack. Keep the large containers in the signed app
+  // bundle and expose them through Documents, where PathGet(6/7) expects them.
+  // Existing non-empty user files take precedence; no multi-gigabyte copy is
+  // needed at launch. Symlinks are refreshed after an IPA update.
+  NSString* bundledBase = [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"ziru/native_base"];
+  if ([fm fileExistsAtPath:bundledBase]) {
+    for (NSString* folder in @[@"pak", @"cpk", @"livedata", @"Download"]) {
+      NSString* sourceDir = [bundledBase stringByAppendingPathComponent:folder];
+      if (![fm fileExistsAtPath:sourceDir]) continue;
+      NSString* targetDir = [gDocs stringByAppendingPathComponent:folder];
+      [fm createDirectoryAtPath:targetDir withIntermediateDirectories:YES attributes:nil error:nil];
+      NSUInteger linked = 0;
+      for (NSString* name in [fm contentsOfDirectoryAtPath:sourceDir error:nil]) {
+        if ([name hasPrefix:@"."]) continue;
+        NSString* source = [sourceDir stringByAppendingPathComponent:name];
+        BOOL sourceIsDir = NO;
+        if (![fm fileExistsAtPath:source isDirectory:&sourceIsDir] || sourceIsDir) continue;
+        NSString* target = [targetDir stringByAppendingPathComponent:name];
+        ensureSymlink(target, source);
+        if ([fm fileExistsAtPath:target]) linked++;
+      }
+      ZLog(@"[NATIVE_BASE] %@ %lu/%lu available", folder,
+           (unsigned long)linked, (unsigned long)[fm contentsOfDirectoryAtPath:sourceDir error:nil].count);
+    }
+    if (!foundLivedata) foundLivedata = [gDocs stringByAppendingPathComponent:@"livedata"];
+  }
+
   // Create _mobile_ios symlinks for livedata files, and mount all epic paks/ucas/utoc into pak/ and cpk into cpk/
   // CRITICAL: Also link into Documents/Download/ because onlinemode::UtilityLiveData::GetLiveDataSaveDirPath()
   // returns Documents/Download/ where LiveDataVersionLoader, LiveDataHashChecker, and LiveDataBinder look for dt870 and pc9242..pc9259!
